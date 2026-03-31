@@ -7,10 +7,9 @@
  */
 
 import { Command } from "commander";
-import { writeFileSync } from "fs";
-import { crawl, CrawlResult } from "./crawl.js";
+import { crawl } from "./crawl.js";
 import { closeBrowser } from "./extract.js";
-import { filterMarkdown } from "./filter.js";
+import { writeOutput } from "./output.js";
 import { cacheStats, cacheClear } from "./cache.js";
 
 const program = new Command();
@@ -23,7 +22,7 @@ program
   .option("-d, --depth <n>", "Crawl depth (0 = single page)", "0")
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "50")
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
-  .option("-o, --output <file>", "Output file path (default: auto-generated)")
+  .option("-o, --output <dir>", "Output directory (default: auto-generated)")
   .option("-p, --path-prefix <prefix>", "Only follow links under this path")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
@@ -40,8 +39,7 @@ program
     const useReadability = opts.readability !== false;
     const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
-    const outputPath =
-      (opts.output as string) || generateOutputPath(url);
+    const outDir = (opts.output as string) || generateOutputDir(url);
 
     console.log(`\n🔍 llm-docs — Scraping documentation`);
     console.log(`   URL:         ${url}`);
@@ -50,7 +48,7 @@ program
     console.log(`   Concurrency: ${concurrency}`);
     if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
     console.log(`   Cache:       ${noCache ? "disabled" : "~/.cache/llm-docs"}`);
-    console.log(`   Output:      ${outputPath}`);
+    console.log(`   Output:      ${outDir}/`);
     console.log();
 
     try {
@@ -88,18 +86,23 @@ program
         },
       });
 
-      // Build combined markdown
-      const combined = buildOutput(url, result, useFilter);
-
-      // Write output
-      writeFileSync(outputPath, combined, "utf-8");
+      // Write output tree
+      const { files, totalBytes } = writeOutput({
+        outDir,
+        startUrl: url,
+        result,
+        useFilter,
+      });
 
       // Summary
-      const totalKb = (combined.length / 1024).toFixed(1);
+      const totalKb = (totalBytes / 1024).toFixed(1);
       const totalSec = (result.totalTime / 1000).toFixed(1);
       console.log(`\n✨ Done!`);
-      console.log(`   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`);
-      console.log(`   Output:  ${outputPath} (${totalKb}KB)`);
+      console.log(
+        `   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`
+      );
+      console.log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
+      console.log(`   Entry:   ${outDir}/LLMTOC.md`);
       console.log(`   Time:    ${totalSec}s`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);
@@ -109,66 +112,13 @@ program
     }
   });
 
-/** Build the final combined markdown output */
-function buildOutput(
-  startUrl: string,
-  result: CrawlResult,
-  useFilter: boolean
-): string {
-  const sections: string[] = [];
-
-  // Header with metadata
-  const hostname = new URL(startUrl).hostname;
-  sections.push(`# ${hostname} Documentation\n`);
-  sections.push(
-    `> Scraped from [${startUrl}](${startUrl}) — ${result.pages.length} pages, ${new Date().toISOString()}\n`
-  );
-
-  if (result.pages.length > 1) {
-    // Table of contents
-    sections.push(`## Table of Contents\n`);
-    for (const page of result.pages) {
-      const path = new URL(page.url).pathname;
-      const anchor = slugify(page.url);
-      sections.push(`- [${page.title || path}](#${anchor})`);
-    }
-    sections.push("");
-  }
-
-  // Page contents
-  for (const page of result.pages) {
-    if (result.pages.length > 1) {
-      sections.push(`---\n`);
-      const anchor = slugify(page.url);
-      sections.push(`<a id="${anchor}"></a>\n`);
-      sections.push(`> Source: ${page.url}\n`);
-    }
-
-    let content = page.markdown;
-    if (useFilter) {
-      content = filterMarkdown(content);
-    }
-    sections.push(content);
-    sections.push("");
-  }
-
-  return sections.join("\n");
-}
-
-/** Generate output filename from URL */
-function generateOutputPath(url: string): string {
+/** Generate output dir name from URL */
+function generateOutputDir(url: string): string {
   try {
     const u = new URL(url);
-    const parts = [
-      u.hostname.replace(/\./g, "-"),
-      ...u.pathname
-        .split("/")
-        .filter(Boolean)
-        .slice(0, 2),
-    ];
-    return parts.join("-") + "-docs.md";
+    return u.hostname.replace(/\./g, "-") + "-docs";
   } catch {
-    return "docs.md";
+    return "docs";
   }
 }
 
@@ -186,20 +136,6 @@ function shortenUrl(url: string): string {
   }
 }
 
-/** Create a URL slug for anchors */
-function slugify(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.pathname
-      .replace(/^\//, "")
-      .replace(/\/$/, "")
-      .replace(/[^a-z0-9]+/gi, "-")
-      .toLowerCase();
-  } catch {
-    return "page";
-  }
-}
-
 // Subcommand: cache management
 program
   .command("cache")
@@ -211,7 +147,6 @@ program
       const count = cacheClear();
       console.log(`🗑️  Cleared ${count} cached entries.`);
     } else {
-      // Default to stats
       const s = cacheStats();
       console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);
       console.log(`   Location: ~/.cache/llm-docs`);
