@@ -90,26 +90,20 @@ npm link  # installs `llm-docs` globally
 ## Usage
 
 ```bash
-# Single page
-llm-docs https://reactrouter.com/start/modes
-
-# Crawl with depth (follow links from the start page)
-llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80
-
-# Only follow links under a specific path
-llm-docs https://docs.astro.build/en/getting-started/ --depth 2 --path-prefix /en
-
-# Exclude versioned/dev paths (common on doc sites)
+# Scrape React Router v7 docs, skip versioned/dev paths
 llm-docs https://reactrouter.com/start/modes --depth 4 --max-urls 500 \
-  --exclude "/7.13.2,/6.30.3,/dev,/changelog"
+  --exclude "/^\/\d+\.\d+\.\d+/,/dev,/changelog"
 
-# Exclude with regex (e.g. any versioned path like /v2/, /v3.1/)
-llm-docs https://some-docs.com/guide --depth 2 \
-  --exclude "/^\/v\d/"
+# Scrape the Astro docs, only English pages
+llm-docs https://docs.astro.build/en/getting-started/ --depth 3 \
+  --max-urls 200 --path-prefix /en
 
-# Write to a specific base directory
-llm-docs https://react.dev/learn --depth 1 -o ~/docs
-# → creates ~/docs/react-dev-docs/
+# Scrape a single page (e.g. to check output quality)
+llm-docs https://reactrouter.com/start/framework/routing
+
+# Write docs into your project's vendor directory
+llm-docs https://tanstack.com/query/latest/docs/overview \
+  --depth 3 --max-urls 300 -o ./vendor/docs
 ```
 
 ### Output structure
