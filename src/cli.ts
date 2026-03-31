@@ -7,6 +7,7 @@
  */
 
 import { Command } from "commander";
+import { join } from "path";
 import { crawl } from "./crawl.js";
 import { closeBrowser } from "./extract.js";
 import { writeOutput } from "./output.js";
@@ -22,7 +23,7 @@ program
   .option("-d, --depth <n>", "Crawl depth (0 = single page)", "0")
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "50")
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
-  .option("-o, --output <dir>", "Output directory (default: auto-generated)")
+  .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
   .option("-p, --path-prefix <prefix>", "Only follow links under this path")
   .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
@@ -41,7 +42,8 @@ program
     const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
     const exclude = parseExclude((opts.exclude as string) || "");
-    const outDir = (opts.output as string) || generateOutputDir(url);
+    const baseDir = (opts.output as string) || ".";
+    const outDir = join(baseDir, generateDirName(url));
 
     console.log(`\n🔍 llm-docs — Scraping documentation`);
     console.log(`   URL:         ${url}`);
@@ -130,8 +132,8 @@ function parseExclude(raw: string): (string | RegExp)[] {
   });
 }
 
-/** Generate output dir name from URL */
-function generateOutputDir(url: string): string {
+/** Generate output folder name from URL */
+function generateDirName(url: string): string {
   try {
     const u = new URL(url);
     return u.hostname.replace(/\./g, "-") + "-docs";

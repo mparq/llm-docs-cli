@@ -3,11 +3,11 @@
 A CLI tool that scrapes JavaScript-heavy documentation sites into clean, LLM-friendly markdown. Point it at any doc site and get a local file tree that AI coding agents can navigate naturally with `grep`, `find`, and `read`.
 
 ```bash
-llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80 \
-  --exclude "/^\/\d+\.\d+\.\d+/,/dev,/changelog"
+llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 200 \
+  --exclude "/^\/\d+\.\d+\.\d+/,/dev"
 ```
 
-Writes a directory tree to `reactrouter-com-docs/` (derived from hostname, or use `-o <dir>`):
+Writes to `./reactrouter-com-docs/` in the current directory (folder name derived from hostname). Use `-o ~/docs` to write to `~/docs/reactrouter-com-docs/` instead:
 
 ```
 reactrouter-com-docs/
@@ -107,8 +107,9 @@ llm-docs https://reactrouter.com/start/modes --depth 4 --max-urls 500 \
 llm-docs https://some-docs.com/guide --depth 2 \
   --exclude "/^\/v\d/"
 
-# Custom output directory
-llm-docs https://react.dev/learn --depth 1 -o react-docs
+# Write to a specific base directory
+llm-docs https://react.dev/learn --depth 1 -o ~/docs
+# → creates ~/docs/react-dev-docs/
 ```
 
 ### Output structure
@@ -146,7 +147,7 @@ Links between pages are rewritten to relative paths, so `useNavigate.md` links t
 -d, --depth <n>             Crawl depth, 0 = single page (default: 0)
 -m, --max-urls <n>          Maximum pages to scrape (default: 50)
 -c, --concurrency <n>       Concurrent page fetches (default: 5)
--o, --output <dir>          Output directory (default: <hostname>-docs)
+-o, --output <dir>          Base directory to write into (default: current directory)
 -p, --path-prefix <prefix>  Only follow links under this path
 -x, --exclude <patterns>    Exclude URL paths (comma-separated prefixes or /regex/)
 --wait <ms>                 Wait time for JS rendering (default: 3000)
