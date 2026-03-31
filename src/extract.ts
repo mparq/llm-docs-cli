@@ -362,40 +362,42 @@ export async function extractMarkdown(
         }
 
         usedFallback = true;
-        contentHtml = await page.evaluate(() => {
-          // Try progressively broader selectors
-          const selectors = [
-            // Starlight / Astro docs
-            ".sl-markdown-content",
-            // GitHub-flavored
-            ".markdown-body",
-            // Common doc site patterns
-            ".docs-content",
-            ".doc-content",
-            ".content-body",
-            "#content",
-            ".content",
-            // Semantic HTML
-            "main article",
-            "article",
-            "main",
-            '[role="main"]',
-          ];
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && el.innerHTML.length > 500) {
-              return el.innerHTML;
+        contentHtml = await page.evaluate(`
+          (() => {
+            const JUNK = "nav, header, footer, aside, .sidebar, .nav, .header, .footer, " +
+              "[role='navigation'], [role='banner'], [role='contentinfo'], " +
+              "[role='complementary'], [aria-label='breadcrumb'], " +
+              ".version-selector, .theme-toggle, .search-bar, " +
+              ".table-of-contents, .toc, .page-nav, .edit-page";
+
+            function stripJunk(el) {
+              var clone = el.cloneNode(true);
+              clone.querySelectorAll(JUNK).forEach(function(j) { j.remove(); });
+              return clone;
             }
-          }
-          // Last resort: body, but strip nav/header/footer/aside
-          const body = document.body.cloneNode(true) as HTMLElement;
-          body
-            .querySelectorAll(
-              "nav, header, footer, aside, .sidebar, .nav, .header, .footer, [role='navigation'], [role='banner'], [role='contentinfo']"
-            )
-            .forEach((el) => el.remove());
-          return body.innerHTML;
-        });
+
+            var selectors = [
+              ".sl-markdown-content",
+              ".markdown-body",
+              ".docs-content",
+              ".doc-content",
+              ".content-body",
+              "#content",
+              ".content",
+              "main article",
+              "article",
+              "main",
+              "[role='main']",
+            ];
+            for (var i = 0; i < selectors.length; i++) {
+              var el = document.querySelector(selectors[i]);
+              if (el && el.innerHTML.length > 500) {
+                return stripJunk(el).innerHTML;
+              }
+            }
+            return stripJunk(document.body).innerHTML;
+          })()
+        `);
       }
     } else {
       contentHtml = await page.evaluate(() => document.body.innerHTML);
