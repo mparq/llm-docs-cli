@@ -1,1 +1,4 @@
-node_modules/\ndist/\ntest-output/\n.env
+node_modules/
+dist/
+test-output/
+.env
