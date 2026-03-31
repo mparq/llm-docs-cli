@@ -18,6 +18,7 @@ interface CacheEntry {
   markdown: string;
   links: string[];
   rawHtmlLength: number;
+  usedFallback?: boolean;
   cachedAt: string;
 }
 
@@ -50,6 +51,7 @@ export function cacheGet(url: string, ttlMs = DEFAULT_TTL_MS): ExtractResult | n
       markdown: entry.markdown,
       links: entry.links,
       rawHtmlLength: entry.rawHtmlLength,
+      usedFallback: entry.usedFallback ?? false,
       elapsed: 0, // cached, no fetch time
     };
   } catch {
@@ -67,6 +69,7 @@ export function cacheSet(url: string, result: ExtractResult): void {
       markdown: result.markdown,
       links: result.links,
       rawHtmlLength: result.rawHtmlLength,
+      usedFallback: result.usedFallback,
       cachedAt: new Date().toISOString(),
     };
     writeFileSync(cachePath(url), JSON.stringify(entry), "utf-8");

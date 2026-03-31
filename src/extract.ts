@@ -35,6 +35,8 @@ export interface ExtractResult {
   links: string[];
   /** Raw HTML length before processing */
   rawHtmlLength: number;
+  /** Whether Readability failed and we used fallback selectors */
+  usedFallback: boolean;
   /** Time taken in ms */
   elapsed: number;
 }
@@ -329,6 +331,7 @@ export async function extractMarkdown(
     // Extract main content with Readability
     let contentHtml: string;
     let title = pageTitle;
+    let usedFallback = false;
 
     if (opts.useReadability) {
       const dom = new JSDOM(html, { url });
@@ -358,6 +361,7 @@ export async function extractMarkdown(
           );
         }
 
+        usedFallback = true;
         contentHtml = await page.evaluate(() => {
           // Try progressively broader selectors
           const selectors = [
@@ -415,6 +419,7 @@ export async function extractMarkdown(
       markdown,
       links,
       rawHtmlLength: html.length,
+      usedFallback,
       elapsed: Date.now() - start,
     };
   } finally {

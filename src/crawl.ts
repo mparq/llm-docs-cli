@@ -14,6 +14,8 @@ export interface CrawlOptions extends ExtractOptions {
   concurrency?: number;
   /** Filter to only follow links matching this path prefix */
   pathPrefix?: string;
+  /** Exclude URLs matching these patterns (strings or regexes) */
+  exclude?: (string | RegExp)[];
   /** Skip the file cache */
   noCache?: boolean;
   /** Called when a page starts processing */
@@ -47,11 +49,22 @@ function normalizeUrl(url: string): string {
   }
 }
 
+/** Check if a URL matches any exclude pattern */
+function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
+  if (exclude.length === 0) return false;
+  const pathname = new URL(url).pathname;
+  return exclude.some((pattern) => {
+    if (pattern instanceof RegExp) return pattern.test(pathname);
+    return pathname.startsWith(pattern);
+  });
+}
+
 /** Filter discovered links to only those we should crawl */
 function filterLinks(
   links: string[],
   baseUrl: string,
   pathPrefix: string,
+  exclude: (string | RegExp)[],
   seen: Set<string>
 ): string[] {
   const base = new URL(baseUrl);
@@ -64,6 +77,8 @@ function filterLinks(
       if (u.hostname !== base.hostname) return false;
       // Path prefix filter
       if (pathPrefix && !u.pathname.startsWith(pathPrefix)) return false;
+      // Exclude patterns
+      if (isExcluded(normalized, exclude)) return false;
       return true;
     } catch {
       return false;
@@ -88,6 +103,7 @@ export async function crawl(
   const maxUrls = options.maxUrls ?? DEFAULT_CRAWL.maxUrls;
   const concurrency = options.concurrency ?? DEFAULT_CRAWL.concurrency;
   const pathPrefix = options.pathPrefix ?? DEFAULT_CRAWL.pathPrefix;
+  const exclude = options.exclude ?? [];
 
   const extractOpts: ExtractOptions = {
     waitFor: options.waitFor,
@@ -157,6 +173,7 @@ export async function crawl(
             r.value.result.links,
             startUrl,
             pathPrefix,
+            exclude,
             seen
           );
           for (const link of filtered) {

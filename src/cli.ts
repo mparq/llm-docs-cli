@@ -24,6 +24,7 @@ program
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
   .option("-o, --output <dir>", "Output directory (default: auto-generated)")
   .option("-p, --path-prefix <prefix>", "Only follow links under this path")
+  .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
@@ -39,6 +40,7 @@ program
     const useReadability = opts.readability !== false;
     const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
+    const exclude = parseExclude((opts.exclude as string) || "");
     const outDir = (opts.output as string) || generateOutputDir(url);
 
     console.log(`\n🔍 llm-docs — Scraping documentation`);
@@ -47,6 +49,7 @@ program
     console.log(`   Max pages:   ${maxUrls}`);
     console.log(`   Concurrency: ${concurrency}`);
     if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
+    if (exclude.length) console.log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     console.log(`   Cache:       ${noCache ? "disabled" : "~/.cache/llm-docs"}`);
     console.log(`   Output:      ${outDir}/`);
     console.log();
@@ -57,6 +60,7 @@ program
         maxUrls,
         concurrency,
         pathPrefix,
+        exclude,
         noCache,
         waitFor,
         timeout,
@@ -111,6 +115,20 @@ program
       await closeBrowser();
     }
   });
+
+/** Parse --exclude flag: comma-separated, supports /regex/ syntax */
+function parseExclude(raw: string): (string | RegExp)[] {
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).map((s) => {
+    // Check for /regex/ syntax
+    const reMatch = s.match(/^\/(.+)\/([gimsuy]*)$/);
+    if (reMatch) {
+      return new RegExp(reMatch[1], reMatch[2]);
+    }
+    // Otherwise treat as a path prefix
+    return s;
+  });
+}
 
 /** Generate output dir name from URL */
 function generateOutputDir(url: string): string {

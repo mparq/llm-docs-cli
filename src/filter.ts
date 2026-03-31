@@ -235,12 +235,68 @@ function cleanWhitespace(content: string): string {
   return cleaned;
 }
 
+/**
+ * Aggressive chrome stripping for pages where Readability failed.
+ * These patterns are too broad for general use but safe when we know
+ * the content came from a raw selector fallback.
+ */
+function stripFallbackChrome(content: string): string {
+  const lines = content.split("\n");
+  const result: string[] = [];
+  let inCodeBlock = false;
+
+  // Single-line junk patterns common in doc site nav/sidebar chrome
+  const junkLine = [
+    /^(latest|Branches|Versions)$/,
+    /^Search.*[⌘⌃].*$/,             // Search⌘K, Search⌃K
+    /^(Light|Dark|System)\s*(Light|Dark|System)*/,
+    /^Copy Page.*$/,
+    /^Edit Page.*$/,
+    /^On this page$/i,
+    /^Table of Contents$/i,
+    /^\[\s*$/,                       // orphaned [ from broken link markup
+    /^\]\([^)]*\)\s*$/,             // orphaned ](url) from broken link markup
+    /^\[API Reference\]/,           // API Reference nav link
+    /^\[Brand Assets\]/,            // footer link
+    /^\[Edit\]\(/,                  // Edit page link
+    /^Docs and examples \[CC/,      // license footer
+    /^•$/,                           // bullet separator in footers
+    // Version switcher: lines that are just version links chained together
+    // e.g. [latest (7.13.2)](./foo)[dev](../../dev/foo)
+    // e.g. [7.13.2](../../7.13.2/home)[6.30.3](../../6.30.3)...
+    /^(\[[^\]]*\]\([^)]*\)){2,}$/,
+  ];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      continue;
+    }
+
+    if (inCodeBlock) {
+      result.push(line);
+      continue;
+    }
+
+    if (junkLine.some((p) => p.test(trimmed))) continue;
+
+    result.push(line);
+  }
+
+  return result.join("\n");
+}
+
 export interface FilterOptions {
   navigation?: boolean;
   legalBoilerplate?: boolean;
   emptySections?: boolean;
   formattingArtifacts?: boolean;
   deduplicate?: boolean;
+  /** Enable aggressive chrome stripping (for Readability fallback pages) */
+  aggressiveChrome?: boolean;
 }
 
 const DEFAULTS: Required<FilterOptions> = {
@@ -249,6 +305,7 @@ const DEFAULTS: Required<FilterOptions> = {
   emptySections: true,
   formattingArtifacts: true,
   deduplicate: true,
+  aggressiveChrome: false,
 };
 
 /** Apply all content filters to markdown */
@@ -259,6 +316,7 @@ export function filterMarkdown(
   const opts = { ...DEFAULTS, ...options };
   let filtered = content;
 
+  if (opts.aggressiveChrome) filtered = stripFallbackChrome(filtered);
   if (opts.navigation) filtered = filterNavigation(filtered);
   if (opts.legalBoilerplate) filtered = filterLegalBoilerplate(filtered);
   if (opts.emptySections) filtered = filterEmptySections(filtered);

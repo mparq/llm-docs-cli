@@ -63,6 +63,14 @@ llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80
 # Only follow links under a specific path
 llm-docs https://docs.astro.build/en/getting-started/ --depth 2 --path-prefix /en
 
+# Exclude versioned/dev paths (common on doc sites)
+llm-docs https://reactrouter.com/start/modes --depth 4 --max-urls 500 \
+  --exclude "/7.13.2,/6.30.3,/dev,/changelog"
+
+# Exclude with regex (e.g. any versioned path like /v2/, /v3.1/)
+llm-docs https://some-docs.com/guide --depth 2 \
+  --exclude "/^\/v\d/"
+
 # Custom output directory
 llm-docs https://react.dev/learn --depth 1 -o react-docs
 ```
@@ -104,6 +112,7 @@ Links between pages are rewritten to relative paths, so `useNavigate.md` links t
 -c, --concurrency <n>       Concurrent page fetches (default: 5)
 -o, --output <dir>          Output directory (default: <hostname>-docs)
 -p, --path-prefix <prefix>  Only follow links under this path
+-x, --exclude <patterns>    Exclude URL paths (comma-separated prefixes or /regex/)
 --wait <ms>                 Wait time for JS rendering (default: 3000)
 --timeout <ms>              Page load timeout (default: 30000)
 --no-filter                 Disable content filtering
