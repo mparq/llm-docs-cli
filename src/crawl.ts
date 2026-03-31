@@ -3,6 +3,7 @@
  */
 
 import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.js";
+import { cacheGet, cacheSet } from "./cache.js";
 
 export interface CrawlOptions extends ExtractOptions {
   /** Max crawl depth (0 = single page) */
@@ -13,6 +14,8 @@ export interface CrawlOptions extends ExtractOptions {
   concurrency?: number;
   /** Filter to only follow links matching this path prefix */
   pathPrefix?: string;
+  /** Skip the file cache */
+  noCache?: boolean;
   /** Called when a page starts processing */
   onPageStart?: (url: string, current: number, total: number) => void;
   /** Called when a page completes */
@@ -118,11 +121,25 @@ export async function crawl(
         processed++;
         options.onPageStart?.(item.url, processed, Math.min(totalKnown, maxUrls));
 
+        // Check cache first
+        if (!options.noCache) {
+          const cached = cacheGet(item.url);
+          if (cached) {
+            options.onPageComplete?.(cached, processed, Math.min(totalKnown, maxUrls));
+            return { result: cached, depth: item.depth, cached: true };
+          }
+        }
+
         const result = await extractMarkdown(item.url, extractOpts);
+
+        // Store in cache
+        if (!options.noCache) {
+          cacheSet(item.url, result);
+        }
 
         options.onPageComplete?.(result, processed, Math.min(totalKnown, maxUrls));
 
-        return { result, depth: item.depth };
+        return { result, depth: item.depth, cached: false };
       })
     );
 

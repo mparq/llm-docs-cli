@@ -11,6 +11,7 @@ import { writeFileSync } from "fs";
 import { crawl, CrawlResult } from "./crawl.js";
 import { closeBrowser } from "./extract.js";
 import { filterMarkdown } from "./filter.js";
+import { cacheStats, cacheClear } from "./cache.js";
 
 const program = new Command();
 
@@ -28,6 +29,7 @@ program
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
   .option("--no-readability", "Disable Readability (use raw body)")
+  .option("--no-cache", "Skip file cache (~/.cache/llm-docs)")
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
     const maxUrls = parseInt(opts.maxUrls as string, 10);
@@ -36,6 +38,7 @@ program
     const timeout = parseInt(opts.timeout as string, 10);
     const useFilter = opts.filter !== false;
     const useReadability = opts.readability !== false;
+    const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
     const outputPath =
       (opts.output as string) || generateOutputPath(url);
@@ -46,6 +49,7 @@ program
     console.log(`   Max pages:   ${maxUrls}`);
     console.log(`   Concurrency: ${concurrency}`);
     if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
+    console.log(`   Cache:       ${noCache ? "disabled" : "~/.cache/llm-docs"}`);
     console.log(`   Output:      ${outputPath}`);
     console.log();
 
@@ -55,6 +59,7 @@ program
         maxUrls,
         concurrency,
         pathPrefix,
+        noCache,
         waitFor,
         timeout,
         useReadability,
@@ -67,8 +72,10 @@ program
         onPageComplete: (pageResult, current, total) => {
           const short = shortenUrl(pageResult.url);
           const kb = (pageResult.markdown.length / 1024).toFixed(1);
+          const fromCache = pageResult.elapsed === 0;
+          const timing = fromCache ? "cached" : `${pageResult.elapsed}ms`;
           process.stdout.write(
-            `\r  [${current}/${total}] ✅ ${short} (${kb}KB, ${pageResult.elapsed}ms)`.padEnd(
+            `\r  [${current}/${total}] ${fromCache ? "📦" : "✅"} ${short} (${kb}KB, ${timing})`.padEnd(
               80
             ) + "\n"
           );
@@ -192,5 +199,23 @@ function slugify(url: string): string {
     return "page";
   }
 }
+
+// Subcommand: cache management
+program
+  .command("cache")
+  .description("Manage the file cache (~/.cache/llm-docs)")
+  .option("--clear", "Clear all cached pages")
+  .option("--stats", "Show cache statistics")
+  .action((opts: Record<string, boolean>) => {
+    if (opts.clear) {
+      const count = cacheClear();
+      console.log(`🗑️  Cleared ${count} cached entries.`);
+    } else {
+      // Default to stats
+      const s = cacheStats();
+      console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);
+      console.log(`   Location: ~/.cache/llm-docs`);
+    }
+  });
 
 program.parse();
