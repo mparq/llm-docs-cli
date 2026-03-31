@@ -4,7 +4,7 @@ A CLI tool that scrapes JavaScript-heavy documentation sites into clean, LLM-fri
 
 ```bash
 llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80 \
-  --exclude "/7.13.2,/6.30.3,/dev,/changelog"
+  --exclude "/^\/\d+\.\d+\.\d+/,/dev,/changelog"
 ```
 
 Writes a directory tree to `reactrouter-com-docs/` (derived from hostname, or use `-o <dir>`):
