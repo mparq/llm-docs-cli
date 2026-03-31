@@ -3,8 +3,44 @@
 A CLI tool that scrapes JavaScript-heavy documentation sites into clean, LLM-friendly markdown. Point it at any doc site and get a local file tree that AI coding agents can navigate naturally with `grep`, `find`, and `read`.
 
 ```bash
-llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80
+llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 80 \
+  --exclude "/7.13.2,/6.30.3,/dev,/changelog"
 ```
+
+Writes a directory tree to `reactrouter-com-docs/` (derived from hostname, or use `-o <dir>`):
+
+```
+reactrouter-com-docs/
+  LLMTOC.md                              ← start here
+  start/
+    modes.md
+    framework/
+      installation.md
+      routing.md
+      data-loading.md
+      actions.md
+      ...
+    data/
+      routing.md
+      route-object.md
+      ...
+  api/
+    hooks/
+      useNavigate.md
+      useLoaderData.md
+      useFetcher.md
+      ...
+    components/
+      Link.md
+      Form.md
+      ...
+  upgrading/
+    v6.md
+    remix.md
+    ...
+```
+
+Each `.md` file is clean markdown with inline links. Links between scraped pages are **relative paths** (e.g. `../../start/framework/route-module.md`), so LLM agents can follow them with standard file reads. `LLMTOC.md` is the entry point — a nested tree linking to every page.
 
 ## Inspiration
 
