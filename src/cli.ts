@@ -115,6 +115,7 @@ program
       process.exitCode = 1;
     } finally {
       await closeBrowser();
+      process.exit(process.exitCode ?? 0);
     }
   });
 
