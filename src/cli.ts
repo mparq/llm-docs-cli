@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 /**
  * llm-docs CLI — Scrape JS-heavy doc sites into clean LLM-friendly markdown.
  *
