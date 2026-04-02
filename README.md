@@ -179,7 +179,7 @@ After Turndown, a basic cleanup pass collapses excessive blank lines, removes tr
 A chain of content filters runs over the markdown output, all **code-block-aware** (they track ` ``` ` boundaries and skip content inside fences):
 
 - **Navigation chrome** — removes "Skip Navigation" links, breadcrumb trails (`Home > Docs > API`), broken image refs, and back/return links
-- **Legal boilerplate** — strips copyright notices, "All rights reserved", Terms of Service / Privacy Policy mentions
+- **Legal boilerplate** — drops whole lines that are purely copyright notices, "© 2024", "All rights reserved", or standalone "Terms of Service | Privacy Policy" footers (won't match these phrases mid-sentence or inside code blocks)
 - **Empty sections** — removes h3+ headers with no content before the next header
 - **Formatting artifacts** — cleans up orphaned horizontal rules and standalone formatting characters
 - **Deduplication** — removes repeated paragraphs and duplicate h1/h2 headers (common when Readability captures both a nav title and a page title)

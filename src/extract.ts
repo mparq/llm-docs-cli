@@ -45,7 +45,7 @@ export interface ExtractResult {
 /**
  * Create a configured Turndown instance for documentation markdown
  */
-function createTurndown(baseUrl?: string): TurndownService {
+export function createTurndown(baseUrl?: string): TurndownService {
   const td = new TurndownService({
     headingStyle: "atx",
     codeBlockStyle: "fenced",
@@ -191,7 +191,7 @@ function createTurndown(baseUrl?: string): TurndownService {
 /**
  * Clean up the raw markdown output
  */
-function cleanMarkdown(md: string): string {
+export function cleanMarkdown(md: string): string {
   let cleaned = md;
 
   // Collapse 3+ blank lines into 2

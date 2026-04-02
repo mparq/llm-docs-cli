@@ -36,7 +36,7 @@ const DEFAULT_CRAWL: Required<
 };
 
 /** Normalize a URL for dedup: strip hash, trailing slash */
-function normalizeUrl(url: string): string {
+export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
     u.hash = "";
@@ -50,7 +50,7 @@ function normalizeUrl(url: string): string {
 }
 
 /** Check if a URL matches any exclude pattern */
-function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
+export function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
   if (exclude.length === 0) return false;
   const pathname = new URL(url).pathname;
   return exclude.some((pattern) => {
@@ -60,7 +60,7 @@ function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
 }
 
 /** Filter discovered links to only those we should crawl */
-function filterLinks(
+export function filterLinks(
   links: string[],
   baseUrl: string,
   pathPrefix: string,

@@ -4,7 +4,7 @@
  */
 
 /** Remove navigation chrome and UI artifacts, preserving code blocks */
-function filterNavigation(content: string): string {
+export function filterNavigation(content: string): string {
   // First pass: simple regex patterns that won't match inside code
   const safePatterns = [
     /\[Skip Navigation\]\([^)]+\)/gi,
@@ -59,25 +59,39 @@ function filterNavigation(content: string): string {
   return result.join("\n");
 }
 
-/** Remove legal/copyright boilerplate */
-function filterLegalBoilerplate(content: string): string {
-  const patterns = [
-    /Copyright\s*©?\s*\d{4}[^.\n]*\./gi,
-    /©\s*\d{4}[^.\n]*\./gi,
-    /All rights reserved\.?/gi,
-    /Terms of (Service|Use)/gi,
-    /Privacy Policy/gi,
-  ];
+/** Remove legal/copyright boilerplate lines, preserving code blocks */
+export function filterLegalBoilerplate(content: string): string {
+  const lines = content.split("\n");
+  const result: string[] = [];
+  let inCodeBlock = false;
 
-  let filtered = content;
-  for (const p of patterns) {
-    filtered = filtered.replace(p, "");
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      continue;
+    }
+
+    if (inCodeBlock) {
+      result.push(line);
+      continue;
+    }
+
+    // Only drop lines that are purely boilerplate
+    if (/^(Copyright\s*©?|©)\s*\d{4}/.test(trimmed)) continue;
+    if (/^All rights reserved\.?$/i.test(trimmed)) continue;
+    if (/^(Terms of (Service|Use)|Privacy Policy)(\s*[|·•]\s*(Terms of (Service|Use)|Privacy Policy))*\.?$/i.test(trimmed)) continue;
+
+    result.push(line);
   }
-  return filtered;
+
+  return result.join("\n");
 }
 
 /** Remove empty sections (headers with no content before next header) */
-function filterEmptySections(content: string): string {
+export function filterEmptySections(content: string): string {
   const lines = content.split("\n");
   const result: string[] = [];
   let inCodeBlock = false;
@@ -121,7 +135,7 @@ function filterEmptySections(content: string): string {
 }
 
 /** Remove formatting artifacts, but preserve code blocks */
-function filterFormattingArtifacts(content: string): string {
+export function filterFormattingArtifacts(content: string): string {
   const lines = content.split("\n");
   const result: string[] = [];
   let inCodeBlock = false;
@@ -160,7 +174,7 @@ function filterFormattingArtifacts(content: string): string {
 }
 
 /** Deduplicate repeated paragraphs/headers, preserving code blocks */
-function deduplicateContent(content: string): string {
+export function deduplicateContent(content: string): string {
   const lines = content.split("\n");
   const result: string[] = [];
   const seenParagraphs = new Set<string>();
@@ -223,7 +237,7 @@ function deduplicateContent(content: string): string {
 }
 
 /** Final whitespace cleanup */
-function cleanWhitespace(content: string): string {
+export function cleanWhitespace(content: string): string {
   let cleaned = content;
   cleaned = cleaned.replace(/  +/g, " ");
   cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
@@ -240,7 +254,7 @@ function cleanWhitespace(content: string): string {
  * These patterns are too broad for general use but safe when we know
  * the content came from a raw selector fallback.
  */
-function stripFallbackChrome(content: string): string {
+export function stripFallbackChrome(content: string): string {
   const lines = content.split("\n");
   const result: string[] = [];
   let inCodeBlock = false;

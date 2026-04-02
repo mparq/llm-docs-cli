@@ -22,7 +22,7 @@ import { ExtractResult } from "./extract.js";
 import { filterMarkdown } from "./filter.js";
 import { CrawlResult } from "./crawl.js";
 
-interface PageFile {
+export interface PageFile {
   /** Absolute file path on disk */
   filePath: string;
   /** Relative path from outdir (e.g. "start/modes.md") */
@@ -38,7 +38,7 @@ interface PageFile {
  * e.g. https://reactrouter.com/start/modes → start/modes.md
  *      https://reactrouter.com/api/hooks/useNavigate → api/hooks/useNavigate.md
  */
-function urlToRelPath(url: string): string {
+export function urlToRelPath(url: string): string {
   const u = new URL(url);
   let pathname = u.pathname;
 
@@ -54,7 +54,7 @@ function urlToRelPath(url: string): string {
 /**
  * Build a mapping of absolute URLs → relative file paths for link rewriting.
  */
-function buildUrlMap(pages: ExtractResult[], outDir: string): Map<string, PageFile> {
+export function buildUrlMap(pages: ExtractResult[], outDir: string): Map<string, PageFile> {
   const map = new Map<string, PageFile>();
 
   for (const page of pages) {
@@ -74,7 +74,7 @@ function buildUrlMap(pages: ExtractResult[], outDir: string): Map<string, PageFi
  * Rewrite absolute URLs in markdown content to relative file paths.
  * Only rewrites links that point to pages we've scraped.
  */
-function rewriteLinks(
+export function rewriteLinks(
   markdown: string,
   currentRelPath: string,
   urlMap: Map<string, PageFile>,
@@ -132,13 +132,13 @@ function rewriteLinks(
 /**
  * Group pages into a tree structure for the TOC.
  */
-interface TocNode {
+export interface TocNode {
   name: string;
   page?: PageFile;
   children: Map<string, TocNode>;
 }
 
-function buildTocTree(pages: PageFile[]): TocNode {
+export function buildTocTree(pages: PageFile[]): TocNode {
   const root: TocNode = { name: "", children: new Map() };
 
   for (const page of pages) {
@@ -163,7 +163,7 @@ function buildTocTree(pages: PageFile[]): TocNode {
   return root;
 }
 
-function renderTocTree(node: TocNode, indent: number = 0): string[] {
+export function renderTocTree(node: TocNode, indent: number = 0): string[] {
   const lines: string[] = [];
   const prefix = "  ".repeat(indent);
 
