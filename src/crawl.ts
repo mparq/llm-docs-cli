@@ -123,78 +123,72 @@ export async function crawl(
   seen.add(normalizeUrl(startUrl));
 
   let processed = 0;
+  let active = 0;
 
-  while (queue.length > 0 && processed < maxUrls) {
-    // Take a batch up to concurrency limit
-    const batchSize = Math.min(concurrency, maxUrls - processed, queue.length);
-    const batch = queue.splice(0, batchSize);
+  /** Process a single queue item, discovering new links on completion */
+  async function processItem(item: QueueItem): Promise<void> {
+    processed++;
+    const current = processed;
+    const totalKnown = Math.min(current + queue.length + active - 1, maxUrls);
 
-    const totalKnown = processed + batch.length + queue.length;
+    options.onPageStart?.(item.url, current, totalKnown);
 
-    // Process batch concurrently
-    const results = await Promise.allSettled(
-      batch.map(async (item) => {
-        processed++;
-        options.onPageStart?.(item.url, processed, Math.min(totalKnown, maxUrls));
-
-        // Check cache first
-        if (!options.noCache) {
-          const cached = cacheGet(item.url);
-          if (cached) {
-            options.onPageComplete?.(cached, processed, Math.min(totalKnown, maxUrls));
-            return { result: cached, depth: item.depth, cached: true };
-          }
+    try {
+      // Check cache first
+      if (!options.noCache) {
+        const cached = cacheGet(item.url);
+        if (cached) {
+          pages.push(cached);
+          options.onPageComplete?.(cached, current, totalKnown);
+          enqueueLinks(cached.links, item.depth);
+          return;
         }
-
-        const result = await extractMarkdown(item.url, extractOpts);
-
-        // Store in cache
-        if (!options.noCache) {
-          cacheSet(item.url, result);
-        }
-
-        options.onPageComplete?.(result, processed, Math.min(totalKnown, maxUrls));
-
-        return { result, depth: item.depth, cached: false };
-      })
-    );
-
-    // Collect results and discover new links
-    const newLinks: QueueItem[] = [];
-
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === "fulfilled") {
-        pages.push(r.value.result);
-
-        // Discover links if we haven't hit max depth
-        if (r.value.depth < depth) {
-          const filtered = filterLinks(
-            r.value.result.links,
-            startUrl,
-            pathPrefix,
-            exclude,
-            seen
-          );
-          for (const link of filtered) {
-            if (seen.size >= maxUrls) break;
-            const normalized = normalizeUrl(link);
-            seen.add(normalized);
-            newLinks.push({ url: normalized, depth: r.value.depth + 1 });
-          }
-        }
-      } else {
-        const url = batch[i].url;
-        const errMsg =
-          r.reason instanceof Error ? r.reason.message : String(r.reason);
-        errors.push({ url, error: errMsg });
-        options.onPageError?.(url, r.reason as Error);
       }
-    }
 
-    // Add discovered links to the queue
-    queue.push(...newLinks);
+      const result = await extractMarkdown(item.url, extractOpts);
+
+      // Store in cache
+      if (!options.noCache) {
+        cacheSet(item.url, result);
+      }
+
+      pages.push(result);
+      options.onPageComplete?.(result, current, totalKnown);
+      enqueueLinks(result.links, item.depth);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      errors.push({ url: item.url, error: errMsg });
+      options.onPageError?.(item.url, err as Error);
+    }
   }
+
+  /** Discover and enqueue new links from a completed page */
+  function enqueueLinks(links: string[], currentDepth: number): void {
+    if (currentDepth >= depth) return;
+    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen);
+    for (const link of filtered) {
+      if (seen.size >= maxUrls) break;
+      const normalized = normalizeUrl(link);
+      seen.add(normalized);
+      queue.push({ url: normalized, depth: currentDepth + 1 });
+    }
+  }
+
+  // Semaphore-based pool: start a new task as soon as any slot frees up
+  await new Promise<void>((resolve) => {
+    function drain(): void {
+      while (active < concurrency && queue.length > 0 && processed < maxUrls) {
+        const item = queue.shift()!;
+        active++;
+        processItem(item).finally(() => {
+          active--;
+          drain();
+        });
+      }
+      if (active === 0) resolve();
+    }
+    drain();
+  });
 
   return {
     pages,
