@@ -9,7 +9,17 @@ import { createHash } from "crypto";
 import { homedir } from "os";
 import { ExtractResult } from "./extract.js";
 
-const CACHE_DIR = join(homedir(), ".cache", "llm-docs");
+/** Resolve cache directory: respects LLM_DOCS_CACHE_DIR, XDG_CACHE_HOME, and Windows LOCALAPPDATA */
+function getCacheDir(): string {
+  if (process.env.LLM_DOCS_CACHE_DIR) return process.env.LLM_DOCS_CACHE_DIR;
+  if (process.env.XDG_CACHE_HOME) return join(process.env.XDG_CACHE_HOME, "llm-docs");
+  if (process.platform === "win32") {
+    return join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "llm-docs", "cache");
+  }
+  return join(homedir(), ".cache", "llm-docs");
+}
+
+const CACHE_DIR = getCacheDir();
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CacheEntry {
@@ -93,6 +103,11 @@ export function cacheStats(): { entries: number; sizeKb: number } {
   } catch {
     return { entries: 0, sizeKb: 0 };
   }
+}
+
+/** Get the cache directory path (for display purposes) */
+export function getCacheDir_display(): string {
+  return CACHE_DIR;
 }
 
 /** Clear all cached entries */

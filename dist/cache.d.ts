@@ -12,5 +12,7 @@ export declare function cacheStats(): {
     entries: number;
     sizeKb: number;
 };
+/** Get the cache directory path (for display purposes) */
+export declare function getCacheDir_display(): string;
 /** Clear all cached entries */
 export declare function cacheClear(): number;

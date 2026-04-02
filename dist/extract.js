@@ -17,7 +17,7 @@ const DEFAULT_OPTIONS = {
 /**
  * Create a configured Turndown instance for documentation markdown
  */
-function createTurndown(baseUrl) {
+export function createTurndown(baseUrl) {
     const td = new TurndownService({
         headingStyle: "atx",
         codeBlockStyle: "fenced",
@@ -148,7 +148,7 @@ function createTurndown(baseUrl) {
 /**
  * Clean up the raw markdown output
  */
-function cleanMarkdown(md) {
+export function cleanMarkdown(md) {
     let cleaned = md;
     // Collapse 3+ blank lines into 2
     cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
@@ -167,6 +167,17 @@ function cleanMarkdown(md) {
     // Trim the whole thing
     cleaned = cleaned.trim();
     return cleaned;
+}
+/** Return a platform-appropriate Chrome UA string */
+function getDefaultUserAgent() {
+    switch (process.platform) {
+        case "win32":
+            return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        case "linux":
+            return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        default:
+            return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    }
 }
 // Shared browser instance for batch operations
 let sharedBrowser = null;
@@ -201,7 +212,7 @@ export async function extractMarkdown(url, options = {}) {
     const start = Date.now();
     const browser = await getBrowser();
     const context = await browser.newContext({
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        userAgent: getDefaultUserAgent(),
         viewport: { width: 1280, height: 720 },
     });
     const page = await context.newPage();

@@ -10,7 +10,7 @@ import { join } from "path";
 import { crawl } from "./crawl.js";
 import { closeBrowser } from "./extract.js";
 import { writeOutput } from "./output.js";
-import { cacheStats, cacheClear } from "./cache.js";
+import { cacheStats, cacheClear, getCacheDir_display } from "./cache.js";
 const program = new Command();
 program
     .name("llm-docs")
@@ -50,7 +50,7 @@ program
         console.log(`   Path prefix: ${pathPrefix}`);
     if (exclude.length)
         console.log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
-    console.log(`   Cache:       ${noCache ? "disabled" : "~/.cache/llm-docs"}`);
+    console.log(`   Cache:       ${noCache ? "disabled" : getCacheDir_display()}`);
     console.log(`   Output:      ${outDir}/`);
     console.log();
     try {
@@ -156,7 +156,7 @@ program
     else {
         const s = cacheStats();
         console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);
-        console.log(`   Location: ~/.cache/llm-docs`);
+        console.log(`   Location: ${getCacheDir_display()}`);
     }
 });
 program.parse();

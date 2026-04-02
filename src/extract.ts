@@ -218,6 +218,18 @@ export function cleanMarkdown(md: string): string {
   return cleaned;
 }
 
+/** Return a platform-appropriate Chrome UA string */
+function getDefaultUserAgent(): string {
+  switch (process.platform) {
+    case "win32":
+      return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    case "linux":
+      return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    default:
+      return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  }
+}
+
 // Shared browser instance for batch operations
 let sharedBrowser: Browser | null = null;
 
@@ -258,8 +270,7 @@ export async function extractMarkdown(
 
   const browser = await getBrowser();
   const context: BrowserContext = await browser.newContext({
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    userAgent: getDefaultUserAgent(),
     viewport: { width: 1280, height: 720 },
   });
 

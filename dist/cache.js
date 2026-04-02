@@ -6,7 +6,18 @@ import { mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync }
 import { join } from "path";
 import { createHash } from "crypto";
 import { homedir } from "os";
-const CACHE_DIR = join(homedir(), ".cache", "llm-docs");
+/** Resolve cache directory: respects LLM_DOCS_CACHE_DIR, XDG_CACHE_HOME, and Windows LOCALAPPDATA */
+function getCacheDir() {
+    if (process.env.LLM_DOCS_CACHE_DIR)
+        return process.env.LLM_DOCS_CACHE_DIR;
+    if (process.env.XDG_CACHE_HOME)
+        return join(process.env.XDG_CACHE_HOME, "llm-docs");
+    if (process.platform === "win32") {
+        return join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "llm-docs", "cache");
+    }
+    return join(homedir(), ".cache", "llm-docs");
+}
+const CACHE_DIR = getCacheDir();
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 function ensureCacheDir() {
     mkdirSync(CACHE_DIR, { recursive: true });
@@ -77,6 +88,10 @@ export function cacheStats() {
     catch {
         return { entries: 0, sizeKb: 0 };
     }
+}
+/** Get the cache directory path (for display purposes) */
+export function getCacheDir_display() {
+    return CACHE_DIR;
 }
 /** Clear all cached entries */
 export function cacheClear() {

@@ -4,6 +4,7 @@
  * Pipeline: Playwright (JS render) → Readability (main content) → Turndown (HTML→MD)
  */
 import { Browser } from "playwright";
+import TurndownService from "turndown";
 export interface ExtractOptions {
     /** Time to wait for JS rendering (ms) */
     waitFor?: number;
@@ -27,6 +28,14 @@ export interface ExtractResult {
     /** Time taken in ms */
     elapsed: number;
 }
+/**
+ * Create a configured Turndown instance for documentation markdown
+ */
+export declare function createTurndown(baseUrl?: string): TurndownService;
+/**
+ * Clean up the raw markdown output
+ */
+export declare function cleanMarkdown(md: string): string;
 export declare function getBrowser(): Promise<Browser>;
 export declare function closeBrowser(): Promise<void>;
 /**
