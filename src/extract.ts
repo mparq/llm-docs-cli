@@ -157,7 +157,7 @@ function createTurndown(baseUrl?: string): TurndownService {
 
   // Remove script, style, svg, nav, footer, header elements
   td.addRule("removeJunk", {
-    filter: ["script", "style", "svg", "nav", "footer", "noscript", "iframe"],
+    filter: ["script", "style", "svg" as any, "nav", "footer", "noscript", "iframe"],
     replacement() {
       return "";
     },
