@@ -9,8 +9,7 @@
   "scripts": {
     "build": "tsc",
     "llm-docs": "tsx src/cli.ts",
-    "test-extract": "tsx src/test-extract.ts",
-    "test-compare": "tsx src/test-compare.ts"
+    "test-extract": "tsx src/test-extract.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.5.0",

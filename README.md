@@ -68,14 +68,13 @@ llm.codes chose Firecrawl because it's a hosted service — you can't run headle
 
 ### Why a directory tree instead of one big file?
 
-llm.codes outputs a single combined markdown file. That works well for small doc sections, but breaks down for larger sites:
+llm.codes outputs a single combined markdown file. We opted for a directory tree instead, based on the intuition that LLM agents are already good at navigating file trees — it's what they do in every codebase:
 
-- A full React Router scrape is 80 pages / 500KB — too large for most LLM context windows
-- LLM agents already know how to navigate file trees — they do it in every codebase
-- With individual files, agents can `grep` for what they need and `read` only relevant pages
+- Agents can `grep` for what they need and `read` only relevant pages
 - Relative links between files let agents follow references naturally
+- Individual files avoid loading an entire doc site into context when you only need a few pages
 
-The output includes an `LLMTOC.md` entry point that provides a nested tree of all scraped pages.
+The output includes an `LLMTOC.md` entry point that provides a nested tree of all scraped pages. That said, we haven't formally evaluated this against the single-file approach — it's a design bet, not a proven win.
 
 ## Installation
 
@@ -173,12 +172,4 @@ For multi-page crawls, the crawler does BFS link discovery: it extracts same-dom
 
 ## Content extraction quality
 
-Tested against Firecrawl API output on the same pages:
-
-| Site | Playwright (ours) | Firecrawl |
-|---|---|---|
-| React Router | 5.8KB clean content, proper tables | 7.7KB with nav chrome, "Copy code" artifacts |
-| Astro docs | 1.5KB clean, 12 links | 4.4KB with 30+ image refs, banner noise |
-| react.dev | 16.3KB, 19 code blocks | 18.2KB, same code blocks + extra nav |
-
-Our extractor consistently produces more focused output with less noise.
+The Playwright + Readability pipeline produces focused output with minimal noise — clean markdown, proper code fences, and no nav chrome or "Copy code" button artifacts.
