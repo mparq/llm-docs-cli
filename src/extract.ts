@@ -6,6 +6,7 @@
 
 import { chromium, Browser, BrowserContext } from "playwright";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
@@ -243,9 +244,8 @@ export async function getBrowser(): Promise<Browser> {
 
 /** Auto-install Chromium on first run if missing. */
 async function ensureChromium(): Promise<void> {
-  try {
-    chromium.executablePath();
-  } catch {
+  const execPath = chromium.executablePath();
+  if (!existsSync(execPath)) {
     console.log("\n📦 Chromium not found — installing for Playwright (one-time, ~400MB)...\n");
     execFileSync("npx", ["playwright", "install", "chromium"], { stdio: "inherit" });
   }
