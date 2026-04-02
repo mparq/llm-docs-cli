@@ -114,35 +114,6 @@ llm-docs https://tanstack.com/query/latest/docs/overview \
   --depth 3 --max-urls 300 -o ./vendor/docs
 ```
 
-### Output structure
-
-```
-reactrouter-com-docs/
-  LLMTOC.md                                    # entry point — nested tree of all pages
-  start/
-    modes.md                                    # mirrors /start/modes
-    framework/
-      installation.md                           # mirrors /start/framework/installation
-      routing.md
-      data-loading.md
-      ...
-  api/
-    hooks/
-      useNavigate.md                            # mirrors /api/hooks/useNavigate
-      useLoaderData.md
-      ...
-    components/
-      Link.md
-      Form.md
-      ...
-  upgrading/
-    v6.md
-    remix.md
-    ...
-```
-
-Links between pages are rewritten to relative paths, so `useNavigate.md` links to `../../start/framework/route-module.md` instead of an absolute URL.
-
 ### Options
 
 ```
@@ -170,15 +141,62 @@ llm-docs cache --clear  # clear all cached entries
 
 ## How it works
 
-1. **Playwright** launches headless Chromium, navigates to the URL, waits for JS to render
-2. **Readability** (Mozilla's article extractor) pulls out the main content, stripping nav/sidebar/footer
-3. If Readability returns too little, a **fallback chain** tries semantic selectors (`.sl-markdown-content`, `.markdown-body`, `main`, `article`, etc.)
-4. **Turndown** converts the extracted HTML to markdown with proper code fences, tables, and inline links
-5. **Content filters** clean up nav chrome, legal boilerplate, empty sections, and duplicate paragraphs — all code-block-aware to avoid destroying code examples
-6. Links to same-domain pages that were also scraped are **rewritten to relative paths**
+The pipeline has four stages: **render → extract → convert → output**.
 
-For multi-page crawls, the crawler does BFS link discovery: it extracts same-domain links from the raw HTML before Readability processes it, then follows them up to the configured depth and max-urls limits.
+### 1. Render with Playwright
+
+Playwright launches headless Chromium and navigates to the target URL. It waits for `networkidle` plus a configurable delay (default 3s) to let client-side JavaScript finish rendering. Images, fonts, and media are blocked via route interception to speed things up.
+
+### 2. Extract main content
+
+**Link discovery happens first**, before any content extraction. The crawler evaluates `document.querySelectorAll('a[href]')` in the live page to collect same-domain links, normalizing them (stripping hash/search/trailing slash) and filtering out non-content URLs (images, login pages, etc.). These links feed the BFS crawl queue.
+
+Then [Readability](https://github.com/nickersoft/readability) (Mozilla's article extraction library, the same engine behind Firefox Reader View) parses the full rendered HTML to isolate the main content, stripping away navigation, sidebars, footers, and other chrome. It's given the rendered DOM via JSDOM.
+
+If Readability returns too little content (<1000 chars) — which happens on some doc sites with unusual markup — a **fallback selector chain** kicks in. It tries, in order:
+
+1. `.sl-markdown-content` (Starlight docs)
+2. `.markdown-body` (GitHub-style)
+3. `.docs-content`, `.doc-content`, `.content-body`
+4. `#content`, `.content`
+5. `main article`, `article`, `main`, `[role='main']`
+
+The first selector that matches an element with >500 chars of inner HTML wins. The fallback also strips known junk selectors (nav, footer, sidebar, breadcrumbs, TOC, etc.) from the matched element before returning.
+
+### 3. Convert to markdown
+
+[Turndown](https://github.com/mixmark-io/turndown) converts the extracted HTML to markdown with custom rules for:
+
+- **Code blocks** — detects language from `language-*` / `lang-*` / `highlight-*` CSS classes and emits fenced blocks with the correct language tag
+- **Tables** — full HTML table → markdown table conversion (thead/tbody/th/td)
+- **Links** — relative `href` values are resolved to absolute URLs against the page base URL
+- **Junk removal** — `script`, `style`, `svg`, `nav`, `footer`, `noscript`, `iframe`, and hidden elements (`display:none`, `aria-hidden`, `[hidden]`) are stripped during conversion
+
+After Turndown, a basic cleanup pass collapses excessive blank lines, removes trailing whitespace, and adds the page title as an H1 if the markdown doesn't already start with one.
+
+### 4. Filter and clean
+
+A chain of content filters runs over the markdown output, all **code-block-aware** (they track ` ``` ` boundaries and skip content inside fences):
+
+- **Navigation chrome** — removes "Skip Navigation" links, breadcrumb trails (`Home > Docs > API`), broken image refs, and back/return links
+- **Legal boilerplate** — strips copyright notices, "All rights reserved", Terms of Service / Privacy Policy mentions
+- **Empty sections** — removes h3+ headers with no content before the next header
+- **Formatting artifacts** — cleans up orphaned horizontal rules and standalone formatting characters
+- **Deduplication** — removes repeated paragraphs and duplicate h1/h2 headers (common when Readability captures both a nav title and a page title)
+- **Aggressive chrome** (fallback pages only) — additional patterns for version switchers, search bars, theme toggles, "Edit Page" links, and other UI artifacts that leak through when Readability couldn't isolate the content. This logic is likely over-fitted to the usecases I tested locally (react router 7 docs and shopify hydrogen docs)
+
+### 5. Output and link rewriting
+
+Each page's URL path maps directly to a file path: `/start/framework/routing` → `start/framework/routing.md`. All markdown links pointing to other scraped pages are rewritten from absolute URLs to **relative file paths** (e.g. `../../start/framework/route-module.md`), computed from the directory positions of the source and target files.
+
+An `LLMTOC.md` entry point is generated with a nested tree linking to every page, grouped by directory structure.
+
+### Crawling
+
+For multi-page scrapes, the crawler does **BFS link discovery**. Links are extracted from the raw rendered HTML (before Readability processes it), filtered by hostname, path prefix, and exclude patterns, then queued at the next depth level. A `Set` of normalized URLs handles deduplication. Pages are fetched concurrently (default 5) with a configurable max-urls cap.
+
+Scraped pages are cached to `~/.cache/llm-docs` as JSON files (keyed by URL hash) with a 7-day TTL, so re-running the same scrape skips already-fetched pages.
 
 ## Content extraction quality
 
-The Playwright + Readability pipeline produces focused output with minimal noise — clean markdown, proper code fences, and no nav chrome or "Copy code" button artifacts.
+The Playwright + Readability pipeline produces focused output with minimal noise — clean markdown, proper code fences, and no nav chrome or "Copy code" button artifacts. The fallback selector chain ensures reasonable output even on doc sites where Readability struggles.
