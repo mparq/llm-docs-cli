@@ -48,6 +48,8 @@ This project is heavily inspired by [llm.codes](https://github.com/amantusai/llm
 
 We extracted the core ideas from llm.codes and rebuilt them as a local CLI with some different tradeoffs:
 
+"We" means me and AI agent, pulling up llm.codes codebase talking about how it works, and implementing this. Fair warning, all code in this repo is agent-written.
+
 | | llm.codes | llm-docs (this project) |
 |---|---|---|
 | **Runtime** | Hosted web service (Next.js on Vercel) | Local CLI |
@@ -59,11 +61,11 @@ We extracted the core ideas from llm.codes and rebuilt them as a local CLI with 
 
 ### Why Playwright over Firecrawl?
 
-llm.codes chose Firecrawl because it's a hosted service — you can't run headless Chrome on Vercel serverless functions. For a local CLI, the calculus is different:
+We guess llm.codes chose Firecrawl because it's a hosted service — you can't run headless Chrome on Vercel serverless functions, and it also just works. For a local CLI, the calculus is different:
 
 - **Free** — no API key, no per-page cost, no rate limits
 - **Any domain** — no whitelist needed
-- **Comparable quality** — in our testing, Playwright + Readability actually produces cleaner output than Firecrawl for most doc sites (less nav chrome, no "Copy code" artifacts, no image tag noise)
+- **Comparable quality** — in our testing, Playwright + Readability actually produces cleaner output than Firecrawl for the doc sites we cared about (less nav chrome, no "Copy code" artifacts, no image tag noise)
 - **Tradeoff** — ~5s per page locally vs ~1s on Firecrawl's cloud infra
 
 ### Why a directory tree instead of one big file?
@@ -74,16 +76,13 @@ llm.codes outputs a single combined markdown file. We opted for a directory tree
 - Relative links between files let agents follow references naturally
 - Individual files avoid loading an entire doc site into context when you only need a few pages
 
-The output includes an `LLMTOC.md` entry point that provides a nested tree of all scraped pages. That said, we haven't formally evaluated this against the single-file approach — it's a design bet, not a proven win.
+The output includes an `LLMTOC.md` entry point that provides a nested tree of all scraped pages, although in practice usually the agent just greps and finds by filename the files they're looking for. That said, we haven't formally evaluated this against the single-file approach.
 
 ## Installation
 
 ```bash
-# One-liner via npx (installs from GitHub, no clone needed)
-npx github:mparq/llm-docs-cli <url>
-
-# Or install globally
-npm install -g github:mparq/llm-docs-cli
+# Install globally from GitHub
+npm i -g https://github.com/mparq/llm-docs-cli/tarball/main
 llm-docs <url>
 
 # Or clone and link locally
