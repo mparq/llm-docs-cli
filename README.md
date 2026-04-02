@@ -79,12 +79,22 @@ The output includes an `LLMTOC.md` entry point that provides a nested tree of al
 ## Installation
 
 ```bash
-git clone <this-repo>
+# One-liner via npx (installs from GitHub, no clone needed)
+npx github:mparq/llm-docs-cli <url>
+
+# Or install globally
+npm install -g github:mparq/llm-docs-cli
+llm-docs <url>
+
+# Or clone and link locally
+git clone https://github.com/mparq/llm-docs-cli.git
 cd llm-docs-cli
 npm install
-npx playwright install chromium
-npm link  # installs `llm-docs` globally
+npm link
+llm-docs <url>
 ```
+
+On first run, Chromium (~400MB) is automatically downloaded for Playwright if not already present.
 
 ## Usage
 
