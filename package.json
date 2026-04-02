@@ -4,7 +4,7 @@
   "description": "Scrape JS-heavy documentation sites into clean LLM-friendly markdown",
   "type": "module",
   "bin": {
-    "llm-docs": "./src/cli.ts"
+    "llm-docs": "./bin/llm-docs.mjs"
   },
   "scripts": {
     "dev": "tsx src/cli.ts",

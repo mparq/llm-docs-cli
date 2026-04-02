@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * llm-docs CLI — Scrape JS-heavy doc sites into clean LLM-friendly markdown.
  *
@@ -8,10 +8,10 @@
 
 import { Command } from "commander";
 import { join } from "path";
-import { crawl } from "./crawl.js";
-import { closeBrowser } from "./extract.js";
-import { writeOutput } from "./output.js";
-import { cacheStats, cacheClear, getCacheDirPath } from "./cache.js";
+import { crawl } from "./crawl.ts";
+import { closeBrowser } from "./extract.ts";
+import { writeOutput } from "./output.ts";
+import { cacheStats, cacheClear, getCacheDirPath } from "./cache.ts";
 
 const program = new Command();
 
@@ -159,7 +159,7 @@ function shortenUrl(url: string): string {
 // Subcommand: cache management
 program
   .command("cache")
-  .description("Manage the file cache (~/.cache/llm-docs)")
+  .description("Manage the file cache")
   .option("--clear", "Clear all cached pages")
   .option("--stats", "Show cache statistics")
   .action((opts: Record<string, boolean>) => {

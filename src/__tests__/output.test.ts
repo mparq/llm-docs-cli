@@ -6,8 +6,8 @@ import {
   buildTocTree,
   renderTocTree,
   PageFile,
-} from "../output.js";
-import { ExtractResult } from "../extract.js";
+} from "../output.ts";
+import { ExtractResult } from "../extract.ts";
 
 function makePage(url: string, title: string = "Test"): ExtractResult {
   return {

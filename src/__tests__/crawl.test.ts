@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, isExcluded, filterLinks } from "../crawl.js";
+import { normalizeUrl, isExcluded, filterLinks } from "../crawl.ts";
 
 describe("normalizeUrl", () => {
   it("should strip hash fragments", () => {

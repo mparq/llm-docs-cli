@@ -2,8 +2,8 @@
  * Crawler: BFS link discovery with depth control, concurrency, and deduplication.
  */
 
-import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.js";
-import { cacheGet, cacheSet } from "./cache.js";
+import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.ts";
+import { cacheGet, cacheSet } from "./cache.ts";
 
 export interface CrawlOptions extends ExtractOptions {
   /** Max crawl depth (0 = single page) */

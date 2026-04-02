@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync }
 import { join } from "path";
 import { createHash } from "crypto";
 import { homedir } from "os";
-import { ExtractResult } from "./extract.js";
+import { ExtractResult } from "./extract.ts";
 
 /** Resolve cache directory: respects LLM_DOCS_CACHE_DIR, XDG_CACHE_HOME, and Windows LOCALAPPDATA */
 function getCacheDir(): string {

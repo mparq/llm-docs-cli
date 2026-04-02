@@ -18,9 +18,9 @@
 
 import { mkdirSync, writeFileSync } from "fs";
 import { join, dirname, relative, posix } from "path";
-import { ExtractResult } from "./extract.js";
-import { filterMarkdown } from "./filter.js";
-import { CrawlResult } from "./crawl.js";
+import { ExtractResult } from "./extract.ts";
+import { filterMarkdown } from "./filter.ts";
+import { CrawlResult } from "./crawl.ts";
 
 export interface PageFile {
   /** Absolute file path on disk */

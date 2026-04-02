@@ -8,7 +8,7 @@ import {
   cleanWhitespace,
   stripFallbackChrome,
   filterMarkdown,
-} from "../filter.js";
+} from "../filter.ts";
 
 describe("filterNavigation", () => {
   it("should remove Skip Navigation links", () => {

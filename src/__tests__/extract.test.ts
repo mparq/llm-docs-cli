@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTurndown, cleanMarkdown } from "../extract.js";
+import { createTurndown, cleanMarkdown } from "../extract.ts";
 
 describe("cleanMarkdown", () => {
   it("should collapse 3+ blank lines into 2", () => {
