@@ -99,23 +99,20 @@ On first run, Chromium (~400MB) is automatically downloaded for Playwright if no
 
 ```bash
 # Scrape React Router v7 docs, skip versioned/dev paths
-llm-docs https://reactrouter.com/start/modes --depth 4 --max-urls 500 \
+llm-docs https://reactrouter.com/start/modes --depth 3 --max-urls 500 \
   --exclude "/^\/\d+\.\d+\.\d+/,/dev,/changelog"
 
 # Scrape the Astro docs, only English pages
-llm-docs https://docs.astro.build/en/getting-started/ --depth 3 \
+llm-docs https://docs.astro.build/en/getting-started/ --depth 2 \
   --max-urls 200 --path-prefix /en
 
 # Scrape a single page (e.g. to check output quality)
 llm-docs https://reactrouter.com/start/framework/routing
 
 # Scrape all Shopify Admin GraphQL API docs (~1600 small pages)
+# -o places the output into references/shopify-dev-com/
 llm-docs https://shopify.dev/docs/api/admin-graphql/latest \
-  --depth 2 --max-urls 1600
-
-# Write docs into your project's vendor directory
-llm-docs https://tanstack.com/query/latest/docs/overview \
-  --depth 3 --max-urls 300 -o ./vendor/docs
+  --depth 2 --max-urls 1600 -o ./references
 ```
 
 ### Options
