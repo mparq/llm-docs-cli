@@ -109,6 +109,10 @@ llm-docs https://docs.astro.build/en/getting-started/ --depth 3 \
 # Scrape a single page (e.g. to check output quality)
 llm-docs https://reactrouter.com/start/framework/routing
 
+# Scrape all Shopify Admin GraphQL API docs (~1600 small pages)
+llm-docs https://shopify.dev/docs/api/admin-graphql/latest \
+  --depth 2 --max-urls 1600
+
 # Write docs into your project's vendor directory
 llm-docs https://tanstack.com/query/latest/docs/overview \
   --depth 3 --max-urls 300 -o ./vendor/docs
