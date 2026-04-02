@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepare": "npx tsc",
+    "prepare": "./node_modules/.bin/tsc",
     "dev": "tsx src/cli.ts",
     "test-extract": "tsx src/test-extract.ts"
   },
