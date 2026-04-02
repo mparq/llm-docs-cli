@@ -57,7 +57,7 @@ We extracted the core ideas from llm.codes and rebuilt them as a local CLI with 
 | **Domain restriction** | 69 whitelisted documentation domains | Any URL |
 | **Output** | Single combined markdown file | Directory tree mirroring URL structure |
 | **Content extraction** | Firecrawl's `onlyMainContent` | Readability + semantic selector fallback chain |
-| **Caching** | Redis/in-memory (server-side) | File-based `~/.cache/llm-docs` (7-day TTL) |
+| **Caching** | Redis/in-memory (server-side) | File-based cache with 7-day TTL (see [Cache management](#cache-management)) |
 
 ### Why Playwright over Firecrawl?
 
@@ -132,7 +132,7 @@ llm-docs https://tanstack.com/query/latest/docs/overview \
 
 ### Cache management
 
-Scraped pages are cached in `~/.cache/llm-docs` for 7 days to avoid redundant fetches.
+Scraped pages are cached locally for 7 days to avoid redundant fetches. The default cache location is `~/.cache/llm-docs` on macOS/Linux and `%LOCALAPPDATA%\llm-docs\cache` on Windows. Override with `LLM_DOCS_CACHE_DIR` or `XDG_CACHE_HOME`.
 
 ```bash
 llm-docs cache          # show cache stats
@@ -195,7 +195,7 @@ An `LLMTOC.md` entry point is generated with a nested tree linking to every page
 
 For multi-page scrapes, the crawler does **BFS link discovery**. Links are extracted from the raw rendered HTML (before Readability processes it), filtered by hostname, path prefix, and exclude patterns, then queued at the next depth level. A `Set` of normalized URLs handles deduplication. Pages are fetched concurrently (default 5) with a configurable max-urls cap.
 
-Scraped pages are cached to `~/.cache/llm-docs` as JSON files (keyed by URL hash) with a 7-day TTL, so re-running the same scrape skips already-fetched pages.
+Scraped pages are cached locally as JSON files (keyed by URL hash) with a 7-day TTL, so re-running the same scrape skips already-fetched pages.
 
 ## Content extraction quality
 

@@ -11,7 +11,7 @@ import { join } from "path";
 import { crawl } from "./crawl.js";
 import { closeBrowser } from "./extract.js";
 import { writeOutput } from "./output.js";
-import { cacheStats, cacheClear, getCacheDir_display } from "./cache.js";
+import { cacheStats, cacheClear, getCacheDirPath } from "./cache.js";
 
 const program = new Command();
 
@@ -30,7 +30,7 @@ program
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
   .option("--no-readability", "Disable Readability (use raw body)")
-  .option("--no-cache", "Skip file cache (~/.cache/llm-docs)")
+  .option("--no-cache", "Skip file cache")
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
     const maxUrls = parseInt(opts.maxUrls as string, 10);
@@ -52,7 +52,7 @@ program
     console.log(`   Concurrency: ${concurrency}`);
     if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
     if (exclude.length) console.log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
-    console.log(`   Cache:       ${noCache ? "disabled" : getCacheDir_display()}`);
+    console.log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
     console.log(`   Output:      ${outDir}/`);
     console.log();
 
@@ -169,7 +169,7 @@ program
     } else {
       const s = cacheStats();
       console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);
-      console.log(`   Location: ${getCacheDir_display()}`);
+      console.log(`   Location: ${getCacheDirPath()}`);
     }
   });
 

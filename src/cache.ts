@@ -105,8 +105,8 @@ export function cacheStats(): { entries: number; sizeKb: number } {
   }
 }
 
-/** Get the cache directory path (for display purposes) */
-export function getCacheDir_display(): string {
+/** Get the cache directory path */
+export function getCacheDirPath(): string {
   return CACHE_DIR;
 }
 
