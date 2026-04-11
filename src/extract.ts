@@ -91,12 +91,15 @@ export function createTurndown(baseUrl?: string): TurndownService {
       const code = codeEl.querySelector("code");
       if (!code) return _content;
 
-      // Try to detect language from class names
+      // Try to detect language from class names, or from data-code-language
+      // (set before Readability, which strips class attrs)
       const classes = code.className || "";
       const langMatch = classes.match(
         /(?:language|lang|highlight)-(\w+)/
       );
-      const lang = langMatch ? langMatch[1] : "";
+      const lang = langMatch
+        ? langMatch[1]
+        : codeEl.getAttribute("data-code-language") || "";
       const text = code.textContent || "";
 
       return `\n\n\`\`\`${lang}\n${text}\n\`\`\`\n\n`;
@@ -157,8 +160,23 @@ export function createTurndown(baseUrl?: string): TurndownService {
   });
 
   // Remove script, style, svg, nav, footer, header elements
+  // But preserve them inside <pre>/<code> blocks (code examples)
   td.addRule("removeJunk", {
-    filter: ["script", "style", "svg" as any, "nav", "footer", "noscript", "iframe"],
+    filter(node) {
+      const tag = node.nodeName.toLowerCase();
+      if (!["script", "style", "svg", "nav", "footer", "noscript", "iframe"].includes(tag)) {
+        return false;
+      }
+      // Don't strip if inside a code block — the fencedCodeBlock rule
+      // will grab textContent of the whole <pre><code> tree.
+      let parent = node.parentNode;
+      while (parent) {
+        const pTag = parent.nodeName.toLowerCase();
+        if (pTag === "pre" || pTag === "code") return false;
+        parent = parent.parentNode;
+      }
+      return true;
+    },
     replacement() {
       return "";
     },
@@ -310,6 +328,29 @@ export async function extractMarkdown(
       await page.waitForTimeout(opts.waitFor);
     }
 
+    // Simplify complex code block wrappers before content extraction.
+    // Many doc sites (Shopify, etc.) use CodeMirror-based tabbed code blocks
+    // where <pre><code> is buried inside deep wrapper divs with hidden attrs,
+    // aria-hidden, or excessive nesting that Readability strips as non-content.
+    // Replace these wrappers with their plain <pre><code> children.
+    await page.evaluate(() => {
+      const wrapperSelectors = [
+        "[class*='CodeBlock']",
+        "[class*='codeblock']",
+        "[class*='code-block']",
+        ".cm-editor",
+      ];
+      for (const sel of wrapperSelectors) {
+        document.querySelectorAll(sel).forEach((wrapper) => {
+          const pres = wrapper.querySelectorAll("pre");
+          if (pres.length === 0 || wrapper.tagName === "PRE") return;
+          const fragment = document.createDocumentFragment();
+          pres.forEach((p) => fragment.appendChild(p.cloneNode(true)));
+          wrapper.replaceWith(fragment);
+        });
+      }
+    });
+
     // Get the rendered HTML
     const html = await page.content();
     const pageTitle = await page.title();
@@ -365,6 +406,20 @@ export async function extractMarkdown(
     if (opts.useReadability) {
       const virtualConsole = new VirtualConsole();
       const dom = new JSDOM(html, { url, virtualConsole });
+
+      // Readability strips class attrs from <code> elements, losing language
+      // hints like "language-html". Preserve them as data-language on <pre>.
+      dom.window.document
+        .querySelectorAll("pre > code[class]")
+        .forEach((code) => {
+          const match = (code.className || "").match(
+            /(?:language|lang|highlight)-(\w+)/
+          );
+          if (match) {
+            code.parentElement!.setAttribute("data-code-language", match[1]);
+          }
+        });
+
       const reader = new Readability(dom.window.document, {
         charThreshold: 100,
       });

@@ -167,5 +167,18 @@ describe("createTurndown", () => {
       const result = convert(html);
       expect(result).toBe("Content");
     });
+
+    it("should preserve script tags inside code blocks", () => {
+      const html = '<pre><code class="language-html">&lt;script src="https://cdn.shopify.com/app-bridge.js"&gt;&lt;/script&gt;</code></pre>';
+      const result = convert(html);
+      expect(result).toContain("```html");
+      expect(result).toContain('<script src="https://cdn.shopify.com/app-bridge.js"></script>');
+    });
+
+    it("should preserve script tags inside pre>code even without language", () => {
+      const html = '<pre><code>&lt;head&gt;\n&lt;script src="app.js"&gt;&lt;/script&gt;\n&lt;/head&gt;</code></pre>';
+      const result = convert(html);
+      expect(result).toContain('<script src="app.js"></script>');
+    });
   });
 });
