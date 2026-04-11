@@ -8,7 +8,7 @@ import { chromium, Browser, BrowserContext } from "playwright";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
+import { JSDOM, VirtualConsole } from "jsdom";
 import TurndownService from "turndown";
 
 export interface ExtractOptions {
@@ -357,7 +357,8 @@ export async function extractMarkdown(
     let usedFallback = false;
 
     if (opts.useReadability) {
-      const dom = new JSDOM(html, { url });
+      const virtualConsole = new VirtualConsole();
+      const dom = new JSDOM(html, { url, virtualConsole });
       const reader = new Readability(dom.window.document, {
         charThreshold: 100,
       });
