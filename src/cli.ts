@@ -84,6 +84,7 @@ How to scrape effectively — use the crawler, not loops:
     - Output mirrors the site's URL tree — safe to delete, move, or reorganize
     - --exclude, --path-prefix, and --depth can differ between runs
     - Deleted output files will be regenerated on the next run (cache still warm)
+    - Run \`llm-docs fixlinks <dir>\` to convert absolute URLs to relative paths
 `)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
@@ -153,9 +154,6 @@ How to scrape effectively — use the crawler, not loops:
         useFilter,
       });
 
-      // Rewrite absolute links → relative paths across all .md files
-      const linksFixed = fixLinks(outDir);
-
       // Summary
       const totalKb = (totalBytes / 1024).toFixed(1);
       const totalSec = (result.totalTime / 1000).toFixed(1);
@@ -164,9 +162,9 @@ How to scrape effectively — use the crawler, not loops:
         `   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`
       );
       console.log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
-      if (linksFixed > 0) console.log(`   Links:   ${linksFixed} files updated with relative links`);
       console.log(`   Browse:  ls -R ${outDir}/`);
       console.log(`   Time:    ${totalSec}s`);
+      console.log(`\n   Tip: run \`llm-docs fixlinks ${outDir}\` to rewrite absolute URLs → relative paths`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);
       process.exitCode = 1;
@@ -228,6 +226,20 @@ program
       const s = cacheStats();
       console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);
       console.log(`   Location: ${getCacheDirPath()}`);
+    }
+  });
+
+// Subcommand: fixlinks — rewrite absolute URLs → relative paths
+program
+  .command("fixlinks")
+  .description("Rewrite absolute URLs → relative paths across .md files in an output directory")
+  .argument("<dir>", "Output directory (e.g. shopify.dev)")
+  .action((dir: string) => {
+    const linksFixed = fixLinks(dir);
+    if (linksFixed > 0) {
+      console.log(`🔗 ${linksFixed} files updated with relative links`);
+    } else {
+      console.log(`🔗 No links to rewrite`);
     }
   });
 
