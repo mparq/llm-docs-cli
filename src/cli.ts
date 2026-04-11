@@ -21,7 +21,7 @@ program
   .description("Scrape documentation sites into clean LLM-friendly markdown")
   .version("0.1.0")
   .argument("<url>", "Documentation URL to scrape")
-  .option("-d, --depth <n>", "Crawl depth (0 = single page)", "0")
+  .option("-d, --depth <n>", "Crawl depth (0 = single page)", "2")
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "50")
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
