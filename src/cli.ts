@@ -33,22 +33,6 @@ program
   .option("--no-readability", "Disable Readability (use raw body)")
   .option("--no-cache", "Skip file cache")
   .addHelpText("after", `
-Output structure:
-  Output always starts with a domain-based folder, containing the full URL path:
-
-    $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
-    shopify.dev/
-      docs/api/admin-graphql.md
-      docs/api/admin-graphql/
-        2026-04/full-index.md        ← discovered at depth 1
-        2026-04/mutations/           ← discovered at depth 2
-          productCreate.md
-          productUpdate.md
-          ...
-
-  The top-level folder is always the hostname (e.g. shopify.dev/),
-  regardless of which sub-path you scrape. Use -o to place it elsewhere.
-
 How to scrape effectively — use the crawler, not loops:
   llm-docs is a BFS crawler, not a single-page fetcher. Let it discover pages
   for you by crawling links — don't manually loop over URLs with --depth 0.
@@ -81,10 +65,24 @@ How to scrape effectively — use the crawler, not loops:
 
   Why this works:
     - File cache is keyed per URL — already-fetched pages are free to revisit
-    - Output mirrors the site's URL tree — safe to delete, move, or reorganize
     - --exclude, --path-prefix, and --depth can differ between runs
     - Deleted output files will be regenerated on the next run (cache still warm)
     - Run \`llm-docs fixlinks <dir>\` to convert absolute URLs to relative paths
+
+Output structure:
+  Output is a domain-based folder mirroring the site's URL tree:
+
+    $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
+    shopify.dev/
+      docs/api/admin-graphql.md
+      docs/api/admin-graphql/
+        2026-04/full-index.md        ← discovered at depth 1
+        2026-04/mutations/           ← discovered at depth 2
+          productCreate.md
+          ...
+
+  The top-level folder is always the hostname (e.g. shopify.dev/).
+  Use -o to place it elsewhere. Safe to delete, move, or reorganize.
 `)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
