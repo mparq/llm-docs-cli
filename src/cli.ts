@@ -31,6 +31,41 @@ program
   .option("--no-filter", "Disable content filtering")
   .option("--no-readability", "Disable Readability (use raw body)")
   .option("--no-cache", "Skip file cache")
+  .addHelpText("after", `
+Output structure:
+  Output always starts with a domain-based folder, containing the full URL path:
+
+    $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
+    shopify-dev-docs/
+      LLMTOC.md
+      docs/api/admin-graphql.md
+      docs/api/admin-graphql/
+        queries.md
+        mutations.md
+        objects/
+          Product.md
+          Order.md
+
+  The top-level folder (shopify-dev-docs/) is always derived from the hostname,
+  regardless of which sub-path you scrape. Use -o to place it elsewhere.
+
+Incremental workflow:
+  Runs are additive — cached pages are skipped, and the output tree is stable,
+  so multiple runs compose naturally.
+
+    1. Start broad:   llm-docs <url> --depth 2
+    2. Review output:  inspect the directory tree and LLMTOC.md
+    3. Prune:          delete folders/files you don't need
+    4. Fill gaps:      re-run with --exclude to skip noisy sections,
+                       or target a deeper sub-path to expand a section
+    5. Repeat:         cached pages won't be re-fetched (7-day TTL)
+
+  This works because:
+    - File cache is keyed per URL — already-fetched pages are free to revisit
+    - Output mirrors the site's URL tree — safe to delete, move, or reorganize
+    - --exclude, --path-prefix, and --depth can differ between runs
+    - Deleted output files will be regenerated on the next run (cache still warm)
+`)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
     const maxUrls = parseInt(opts.maxUrls as string, 10);

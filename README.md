@@ -140,6 +140,35 @@ llm-docs cache          # show cache stats
 llm-docs cache --clear  # clear all cached entries
 ```
 
+### Incremental workflow
+
+llm-docs is designed for iterative use. Each run is additive — cached pages are skipped automatically, and output directories mirror the site's URL structure, so results from multiple runs compose naturally. You don't need to get the perfect flags on the first try.
+
+**Recommended approach for large or sprawling doc sites:**
+
+1. **Start broad** — scrape with moderate depth to get an overview:
+   ```bash
+   llm-docs https://shopify.dev/docs/api --depth 2 --max-urls 200
+   ```
+2. **Review output** — inspect the directory tree and `LLMTOC.md` to see what you got
+3. **Prune** — delete folders and files you don't need (e.g. `rm -rf shopify-dev-docs/docs/api/ajax/`)
+4. **Fill gaps** — re-run with `--exclude` to skip noisy sections, or target a deeper sub-path to expand a specific area:
+   ```bash
+   # Skip sections you already pruned, go deeper on what you care about
+   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 3 \
+     --max-urls 500 --exclude "/ajax,/storefront"
+   ```
+5. **Repeat** — cached pages won't be re-fetched (7-day TTL), so iterations are fast
+
+**Why this works:**
+
+- **File cache is per-URL** — already-fetched pages are free to revisit across runs
+- **Output mirrors the URL tree** — safe to delete, move, or reorganize files between runs
+- **Flags can differ between runs** — `--exclude`, `--path-prefix`, and `--depth` can all change
+- **Deleted output files regenerate** — if you delete an output file but the cache is warm, the next run recreates it instantly
+
+This makes llm-docs well-suited for building and maintaining a curated docs reference for a project — scrape once, prune to what's relevant, and top up as needed.
+
 ## How it works
 
 The pipeline has four stages: **render → extract → convert → output**.

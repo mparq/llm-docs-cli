@@ -1,5 +1,11 @@
 node_modules/
 dist/
+# Local doc corpus + Claude bench outputs (regenerate with experiments/README.md)
+experiments/real-scrape/
+experiments/bench-result-*.json
+experiments/feature-bench/docs-tree/
+experiments/feature-bench/workspace-app/
+experiments/feature-bench/artifacts/
 test-output/
 out/
 .env
