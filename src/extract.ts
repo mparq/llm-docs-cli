@@ -287,10 +287,16 @@ export async function extractMarkdown(
     });
 
     // Navigate and wait for content
-    await page.goto(url, {
+    const response = await page.goto(url, {
       waitUntil: "networkidle",
       timeout: opts.timeout,
     });
+
+    // Check for HTTP error status codes
+    const status = response?.status() ?? 0;
+    if (status >= 400) {
+      throw new Error(`HTTP ${status} for ${url}`);
+    }
 
     // Wait for specific selector if provided
     if (opts.waitForSelector) {
@@ -438,6 +444,19 @@ export async function extractMarkdown(
 
     // Clean up
     markdown = cleanMarkdown(markdown);
+
+    // Detect error pages that return 200 but have minimal "not found" content
+    const stripped = markdown.replace(/^#.*\n*/gm, "").trim();
+    if (stripped.length < 200) {
+      const lower = markdown.toLowerCase();
+      if (
+        lower.includes("page not found") ||
+        lower.includes("404") ||
+        lower.includes("not found")
+      ) {
+        throw new Error(`Error page detected for ${url}: content appears to be a 404/not-found page`);
+      }
+    }
 
     return {
       url,
