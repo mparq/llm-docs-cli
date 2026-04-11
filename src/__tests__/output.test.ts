@@ -3,9 +3,6 @@ import {
   urlToRelPath,
   buildUrlMap,
   rewriteLinks,
-  buildTocTree,
-  renderTocTree,
-  PageFile,
 } from "../output.ts";
 import { ExtractResult } from "../extract.ts";
 
@@ -111,51 +108,3 @@ describe("rewriteLinks", () => {
   });
 });
 
-describe("buildTocTree + renderTocTree", () => {
-  it("should build a nested tree from page files", () => {
-    const pages: PageFile[] = [
-      { filePath: "/out/docs/intro.md", relPath: "docs/intro.md", url: "", title: "Introduction" },
-      { filePath: "/out/docs/guides/routing.md", relPath: "docs/guides/routing.md", url: "", title: "Routing" },
-      { filePath: "/out/api/hooks.md", relPath: "api/hooks.md", url: "", title: "Hooks" },
-    ];
-
-    const tree = buildTocTree(pages);
-    const lines = renderTocTree(tree);
-
-    expect(lines.some((l) => l.includes("[Introduction](docs/intro.md)"))).toBe(true);
-    expect(lines.some((l) => l.includes("[Routing](docs/guides/routing.md)"))).toBe(true);
-    expect(lines.some((l) => l.includes("[Hooks](api/hooks.md)"))).toBe(true);
-  });
-
-  it("should nest directories correctly", () => {
-    const pages: PageFile[] = [
-      { filePath: "/out/a/b/c.md", relPath: "a/b/c.md", url: "", title: "Deep Page" },
-    ];
-
-    const tree = buildTocTree(pages);
-    const lines = renderTocTree(tree);
-
-    // Should have directory entries for a/ and b/
-    expect(lines.some((l) => l.includes("**a/**"))).toBe(true);
-    expect(lines.some((l) => l.includes("**b/**"))).toBe(true);
-    expect(lines.some((l) => l.includes("[Deep Page](a/b/c.md)"))).toBe(true);
-  });
-
-  it("should indent nested items", () => {
-    const pages: PageFile[] = [
-      { filePath: "/out/top.md", relPath: "top.md", url: "", title: "Top" },
-      { filePath: "/out/sub/page.md", relPath: "sub/page.md", url: "", title: "Sub Page" },
-    ];
-
-    const tree = buildTocTree(pages);
-    const lines = renderTocTree(tree);
-
-    const topLine = lines.find((l) => l.includes("Top"));
-    const subDirLine = lines.find((l) => l.includes("**sub/**"));
-    const subPageLine = lines.find((l) => l.includes("Sub Page"));
-
-    expect(topLine).toMatch(/^- /);
-    expect(subDirLine).toMatch(/^- /);
-    expect(subPageLine).toMatch(/^  - /);
-  });
-});

@@ -24,7 +24,7 @@ src/
   extract.ts    Core pipeline: Playwright render → Readability extraction → Turndown markdown.
                 Manages shared browser instance. Fallback selector chain when Readability fails.
   filter.ts     Post-processing filters on markdown. All code-block-aware (track ``` boundaries).
-  output.ts     Writes directory tree. Rewrites inter-page links to relative paths. Generates LLMTOC.md.
+  output.ts     Writes directory tree. Rewrites inter-page links to relative paths.
   cache.ts      File-based cache (~/.cache/llm-docs), 7-day TTL, keyed by URL hash.
 ```
 

@@ -37,7 +37,6 @@ Output structure:
 
     $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
     shopify-dev-docs/
-      LLMTOC.md
       docs/api/admin-graphql.md
       docs/api/admin-graphql/
         queries.md
@@ -51,14 +50,13 @@ Output structure:
 
 Incremental workflow:
   Runs are additive — cached pages are skipped, and the output tree is stable,
-  so multiple runs compose naturally.
+  so multiple runs compose naturally. Grab more than you need, then prune later.
 
     1. Start broad:   llm-docs <url> --depth 2
-    2. Review output:  inspect the directory tree and LLMTOC.md
-    3. Prune:          delete folders/files you don't need
-    4. Fill gaps:      re-run with --exclude to skip noisy sections,
-                       or target a deeper sub-path to expand a section
-    5. Repeat:         cached pages won't be re-fetched (7-day TTL)
+    2. Review:         inspect the directory tree
+    3. Go deeper:     re-run with higher --depth, --path-prefix, or a sub-path URL
+    4. Repeat:         cached pages won't be re-fetched (7-day TTL)
+    5. Prune:          delete folders/files you don't need
 
   This works because:
     - File cache is keyed per URL — already-fetched pages are free to revisit
@@ -143,7 +141,7 @@ Incremental workflow:
         `   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`
       );
       console.log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
-      console.log(`   Entry:   ${outDir}/LLMTOC.md`);
+      console.log(`   Browse:  ls -R ${outDir}/`);
       console.log(`   Time:    ${totalSec}s`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);

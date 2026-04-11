@@ -11,7 +11,6 @@ Writes to `./reactrouter-com-docs/` in the current directory (folder name derive
 
 ```
 reactrouter-com-docs/
-  LLMTOC.md                              ← start here
   start/
     modes.md
     framework/
@@ -40,7 +39,7 @@ reactrouter-com-docs/
     ...
 ```
 
-Each `.md` file is clean markdown with inline links. Links between scraped pages are **relative paths** (e.g. `../../start/framework/route-module.md`), so LLM agents can follow them with standard file reads. `LLMTOC.md` is the entry point — a nested tree linking to every page.
+Each `.md` file is clean markdown with inline links. Links between scraped pages are **relative paths** (e.g. `../../start/framework/route-module.md`), so LLM agents can follow them with standard file reads. The directory tree mirrors the site's URL structure, so `ls -R` or `find` gives you a natural table of contents.
 
 ## Inspiration
 
@@ -76,7 +75,7 @@ llm.codes outputs a single combined markdown file. We opted for a directory tree
 - Relative links between files let agents follow references naturally
 - Individual files avoid loading an entire doc site into context when you only need a few pages
 
-The output includes an `LLMTOC.md` entry point that provides a nested tree of all scraped pages, although in practice usually the agent just greps and finds by filename the files they're looking for. That said, we haven't formally evaluated this against the single-file approach.
+In practice, agents just grep and find by filename — the directory tree *is* the table of contents.
 
 ## Installation
 
@@ -146,19 +145,24 @@ llm-docs is designed for iterative use. Each run is additive — cached pages ar
 
 **Recommended approach for large or sprawling doc sites:**
 
+It's cheap to grab too much and prune later — don't try to get the perfect scope on the first run.
+
 1. **Start broad** — scrape with moderate depth to get an overview:
    ```bash
    llm-docs https://shopify.dev/docs/api --depth 2 --max-urls 200
    ```
-2. **Review output** — inspect the directory tree and `LLMTOC.md` to see what you got
-3. **Prune** — delete folders and files you don't need (e.g. `rm -rf shopify-dev-docs/docs/api/ajax/`)
-4. **Fill gaps** — re-run with `--exclude` to skip noisy sections, or target a deeper sub-path to expand a specific area:
+2. **Review** — inspect the directory tree to see what you got
+3. **Go deeper** — re-run with higher `--depth`, use `--path-prefix` to focus on a section, or target a sub-path URL directly:
    ```bash
-   # Skip sections you already pruned, go deeper on what you care about
-   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 3 \
-     --max-urls 500 --exclude "/ajax,/storefront"
+   # Expand a specific section with more depth
+   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 3 --max-urls 500
    ```
-5. **Repeat** — cached pages won't be re-fetched (7-day TTL), so iterations are fast
+4. **Repeat** — cached pages won't be re-fetched (7-day TTL), so iterations are fast
+5. **Prune** — delete folders and files you don't need:
+   ```bash
+   rm -rf shopify-dev-docs/docs/api/ajax/
+   rm -rf shopify-dev-docs/docs/api/storefront/
+   ```
 
 **Why this works:**
 
@@ -167,7 +171,7 @@ llm-docs is designed for iterative use. Each run is additive — cached pages ar
 - **Flags can differ between runs** — `--exclude`, `--path-prefix`, and `--depth` can all change
 - **Deleted output files regenerate** — if you delete an output file but the cache is warm, the next run recreates it instantly
 
-This makes llm-docs well-suited for building and maintaining a curated docs reference for a project — scrape once, prune to what's relevant, and top up as needed.
+This makes llm-docs well-suited for building and maintaining a curated docs reference for a project — scrape broadly, expand what matters, and prune the noise once you have a full picture.
 
 ## How it works
 
@@ -218,8 +222,6 @@ A chain of content filters runs over the markdown output, all **code-block-aware
 ### 5. Output and link rewriting
 
 Each page's URL path maps directly to a file path: `/start/framework/routing` → `start/framework/routing.md`. All markdown links pointing to other scraped pages are rewritten from absolute URLs to **relative file paths** (e.g. `../../start/framework/route-module.md`), computed from the directory positions of the source and target files.
-
-An `LLMTOC.md` entry point is generated with a nested tree linking to every page, grouped by directory structure.
 
 ### Crawling
 

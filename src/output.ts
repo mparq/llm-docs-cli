@@ -5,7 +5,6 @@
  * produces:
  *
  *   <outdir>/
- *     LLMTOC.md
  *     start/
  *       modes.md
  *       framework/
@@ -129,71 +128,6 @@ export function rewriteLinks(
   );
 }
 
-/**
- * Group pages into a tree structure for the TOC.
- */
-export interface TocNode {
-  name: string;
-  page?: PageFile;
-  children: Map<string, TocNode>;
-}
-
-export function buildTocTree(pages: PageFile[]): TocNode {
-  const root: TocNode = { name: "", children: new Map() };
-
-  for (const page of pages) {
-    // Split relPath into segments: "start/framework/routing.md" → ["start", "framework", "routing.md"]
-    const parts = page.relPath.split("/");
-    let node = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!node.children.has(part)) {
-        node.children.set(part, { name: part, children: new Map() });
-      }
-      node = node.children.get(part)!;
-
-      // Last segment — attach the page
-      if (i === parts.length - 1) {
-        node.page = page;
-      }
-    }
-  }
-
-  return root;
-}
-
-export function renderTocTree(node: TocNode, indent: number = 0): string[] {
-  const lines: string[] = [];
-  const prefix = "  ".repeat(indent);
-
-  // Sort: directories first, then files, both alphabetical
-  const entries = Array.from(node.children.entries()).sort(([a, aNode], [b, bNode]) => {
-    const aIsDir = aNode.children.size > 0 && !aNode.page;
-    const bIsDir = bNode.children.size > 0 && !bNode.page;
-    if (aIsDir && !bIsDir) return -1;
-    if (!aIsDir && bIsDir) return 1;
-    return a.localeCompare(b);
-  });
-
-  for (const [, child] of entries) {
-    if (child.page) {
-      const displayName = child.page.title || child.name.replace(/\.md$/, "");
-      lines.push(`${prefix}- [${displayName}](${child.page.relPath})`);
-    } else {
-      // Directory node
-      const dirName = child.name;
-      lines.push(`${prefix}- **${dirName}/**`);
-    }
-
-    if (child.children.size > 0) {
-      lines.push(...renderTocTree(child, indent + 1));
-    }
-  }
-
-  return lines;
-}
-
 export interface WriteOutputOptions {
   outDir: string;
   startUrl: string;
@@ -202,7 +136,7 @@ export interface WriteOutputOptions {
 }
 
 /**
- * Write all scraped pages as individual files with an LLMTOC.md entry point.
+ * Write all scraped pages as individual markdown files with relative links.
  * Returns total bytes written.
  */
 export function writeOutput(opts: WriteOutputOptions): { files: number; totalBytes: number } {
@@ -236,33 +170,6 @@ export function writeOutput(opts: WriteOutputOptions): { files: number; totalByt
     totalBytes += content.length;
     files++;
   }
-
-  // Build and write LLMTOC.md
-  const tocLines: string[] = [
-    `# ${hostname} Documentation`,
-    ``,
-    `> Scraped from [${startUrl}](${startUrl}) — ${result.pages.length} pages, ${new Date().toISOString().split("T")[0]}`,
-    ``,
-    `## Pages`,
-    ``,
-  ];
-
-  const tree = buildTocTree(pageFiles);
-  tocLines.push(...renderTocTree(tree));
-
-  if (result.errors.length > 0) {
-    tocLines.push(``, `## Errors`, ``);
-    for (const err of result.errors) {
-      tocLines.push(`- ${err.url}: ${err.error}`);
-    }
-  }
-
-  const tocContent = tocLines.join("\n") + "\n";
-  const tocPath = join(outDir, "LLMTOC.md");
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(tocPath, tocContent, "utf-8");
-  totalBytes += tocContent.length;
-  files++;
 
   return { files, totalBytes };
 }
