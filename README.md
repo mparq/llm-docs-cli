@@ -139,39 +139,51 @@ llm-docs cache          # show cache stats
 llm-docs cache --clear  # clear all cached entries
 ```
 
-### Incremental workflow
+### How to scrape effectively — use the crawler, not loops
 
-llm-docs is designed for iterative use. Each run is additive — cached pages are skipped automatically, and output directories mirror the site's URL structure, so results from multiple runs compose naturally. You don't need to get the perfect flags on the first try.
+llm-docs is a BFS crawler, not a single-page fetcher. Let it discover pages by following links — don't manually loop over URLs with `--depth 0`:
 
-**Recommended approach for large or sprawling doc sites:**
+```bash
+# BAD — serial, slow, misses pages, no link rewriting
+for url in page1 page2 page3; do llm-docs "$url" -d 0; done
 
-It's cheap to grab too much and prune later — don't try to get the perfect scope on the first run.
+# GOOD — one crawl finds everything via links
+llm-docs https://docs.example.com/api -d 2 -m 500
+```
 
-1. **Start broad** — scrape with moderate depth to get an overview:
+**Recommended workflow for large or unfamiliar doc sites:**
+
+1. **Recon** — do a shallow crawl to understand the site's link structure:
    ```bash
-   llm-docs https://shopify.dev/docs/api --depth 2 --max-urls 200
+   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 1 --max-urls 10
    ```
-2. **Review** — inspect the directory tree to see what you got
-3. **Go deeper** — re-run with higher `--depth`, use `--path-prefix` to focus on a section, or target a sub-path URL directly:
+   Check the output — you'll see what pages exist at depth-1. For example, Shopify's GraphQL API has a `/full-index` page that links to every mutation, query, and object.
+
+2. **Expand** — increase depth and max-urls to follow those links:
    ```bash
-   # Expand a specific section with more depth
-   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 3 --max-urls 500
+   llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2 --max-urls 1600
    ```
-4. **Repeat** — cached pages won't be re-fetched (7-day TTL), so iterations are fast
-5. **Prune** — delete folders and files you don't need:
+   Cached pages from step 1 are free. The crawler follows links from the index page in parallel.
+
+3. **Prune** — delete folders and files you don't need:
    ```bash
-   rm -rf shopify.dev/docs/api/ajax/
-   rm -rf shopify.dev/docs/api/storefront/
+   rm -rf shopify.dev/docs/api/admin-graphql/2026-04/objects/
    ```
 
-**Why this works:**
+4. **Repeat** — target sub-sections with higher depth or a different `--path-prefix`
+
+**Common pitfalls:**
+
+- **Versioned URLs vs aliases** — Sites often use versioned paths (`/2026-04/mutations/productCreate`) that differ from the alias (`/latest/mutations/productCreate`). Check crawl output to see actual discovered paths before setting `--path-prefix` — use the real path, not the alias.
+- **Thin landing pages** — If a crawl returns fewer pages than expected, the landing page may simply not link to much. Do a `--depth 1` recon to find index or sitemap pages first, then crawl from there with higher depth.
+- **Prefer breadth over precision** — One broad crawl + prune is faster and more complete than many targeted `--depth 0` fetches. Each depth-0 call launches a browser, fetches one page, and exits. A depth-2 crawl reuses the browser and follows links concurrently.
+
+**Why incremental runs work:**
 
 - **File cache is per-URL** — already-fetched pages are free to revisit across runs
 - **Output mirrors the URL tree** — safe to delete, move, or reorganize files between runs
 - **Flags can differ between runs** — `--exclude`, `--path-prefix`, and `--depth` can all change
 - **Deleted output files regenerate** — if you delete an output file but the cache is warm, the next run recreates it instantly
-
-This makes llm-docs well-suited for building and maintaining a curated docs reference for a project — scrape broadly, expand what matters, and prune the noise once you have a full picture.
 
 ## How it works
 

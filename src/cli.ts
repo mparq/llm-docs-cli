@@ -40,26 +40,46 @@ Output structure:
     shopify.dev/
       docs/api/admin-graphql.md
       docs/api/admin-graphql/
-        queries.md
-        mutations.md
-        objects/
-          Product.md
-          Order.md
+        2026-04/full-index.md        ← discovered at depth 1
+        2026-04/mutations/           ← discovered at depth 2
+          productCreate.md
+          productUpdate.md
+          ...
 
   The top-level folder is always the hostname (e.g. shopify.dev/),
   regardless of which sub-path you scrape. Use -o to place it elsewhere.
 
-Incremental workflow:
-  Runs are additive — cached pages are skipped, and the output tree is stable,
-  so multiple runs compose naturally. Grab more than you need, then prune later.
+How to scrape effectively — use the crawler, not loops:
+  llm-docs is a BFS crawler, not a single-page fetcher. Let it discover pages
+  for you by crawling links — don't manually loop over URLs with --depth 0.
 
-    1. Start broad:   llm-docs <url> --depth 2
-    2. Review:         inspect the directory tree
-    3. Go deeper:     re-run with higher --depth, --path-prefix, or a sub-path URL
-    4. Repeat:         cached pages won't be re-fetched (7-day TTL)
-    5. Prune:          delete folders/files you don't need
+    BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
+          (serial, slow, misses pages, no link discovery)
+    GOOD: llm-docs https://docs.example.com/api -d 2 -m 500
+          (one crawl finds everything via links)
 
-  This works because:
+  Recommended workflow:
+    1. Recon:    llm-docs <url> --depth 1 --max-urls 10
+                 Look at what pages were discovered — this reveals the site's
+                 link structure (index pages, versioned paths, etc.)
+    2. Expand:   llm-docs <url> --depth 2 --max-urls 500
+                 Increase depth/max to follow the links you saw in step 1.
+                 Cached pages from step 1 are free — only new pages are fetched.
+    3. Prune:    delete folders/files you don't need
+    4. Repeat:   target sub-sections with higher depth or different path-prefix
+
+  Common pitfalls:
+    - Sites often use versioned URLs (/2026-04/...) that differ from aliases
+      (/latest/...). Check crawl output to see actual discovered paths before
+      setting --path-prefix — use the real path, not the alias.
+    - If a crawl returns fewer pages than expected, the landing page may have
+      few links. Try --depth 1 first to find index/sitemap pages, then crawl
+      from there with higher depth.
+    - Prefer one broad crawl + prune over many narrow depth-0 fetches.
+      Each depth-0 call launches a browser, fetches one page, and exits.
+      A single depth-2 crawl reuses the browser and follows links in parallel.
+
+  Why this works:
     - File cache is keyed per URL — already-fetched pages are free to revisit
     - Output mirrors the site's URL tree — safe to delete, move, or reorganize
     - --exclude, --path-prefix, and --depth can differ between runs
