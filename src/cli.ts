@@ -37,10 +37,14 @@ How to scrape effectively — use the crawler, not loops:
   llm-docs is a BFS crawler, not a single-page fetcher. Let it discover pages
   for you by crawling links — don't manually loop over URLs with --depth 0.
 
+  By default, crawled links are filtered to the same domain. Use --path-prefix
+  to further restrict to a sub-section (e.g. --path-prefix /docs/api).
+
     BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
-          (serial, slow, misses pages, no link discovery)
+          Launches a playwright browser per URL — slow, serial, no link discovery.
     GOOD: llm-docs https://docs.example.com/api -d 2 -m 500
-          (one crawl finds everything via links)
+          One crawl finds everything via links. Crawling is cheap — fetched
+          pages are cached locally, and you can always delete what you don't need.
 
   Recommended workflow:
     1. Recon:    llm-docs <url> --depth 1 --max-urls 10
