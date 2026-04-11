@@ -53,12 +53,15 @@ How to scrape effectively — use the crawler, not loops:
     4. Repeat:   target sub-sections with higher depth or different path-prefix
 
   Common pitfalls:
-    - Sites often use versioned URLs (/2026-04/...) that differ from aliases
-      (/latest/...). Check crawl output to see actual discovered paths before
-      setting --path-prefix — use the real path, not the alias.
-    - If a crawl returns fewer pages than expected, the landing page may have
-      few links. Try --depth 1 first to find index/sitemap pages, then crawl
-      from there with higher depth.
+    - If a crawl returns fewer pages than expected, read the fetched files to
+      see what links they actually contain. --path-prefix may be filtering out
+      real links — sites often use paths that don't match the URL you started
+      from: versioned URLs (/2026-04/...) vs aliases (/latest/...), or
+      different hierarchies entirely (e.g. you start at /docs/custom-data/
+      metafields but links point to /docs/metafields/...). Widen or adjust
+      --path-prefix to match the actual link targets.
+    - Similarly, if the landing page has few links, try --depth 1 first to find
+      index/sitemap pages, then crawl from there with higher depth.
     - Prefer one broad crawl + prune over many narrow depth-0 fetches.
       Each depth-0 call launches a browser, fetches one page, and exits.
       A single depth-2 crawl reuses the browser and follows links in parallel.
