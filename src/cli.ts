@@ -11,6 +11,7 @@ import { join } from "path";
 import { crawl } from "./crawl.ts";
 import { closeBrowser } from "./extract.ts";
 import { writeOutput } from "./output.ts";
+import { fixLinks } from "./fixlinks.ts";
 import { cacheStats, cacheClear, getCacheDirPath } from "./cache.ts";
 
 const program = new Command();
@@ -36,7 +37,7 @@ Output structure:
   Output always starts with a domain-based folder, containing the full URL path:
 
     $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
-    shopify-dev-docs/
+    shopify.dev/
       docs/api/admin-graphql.md
       docs/api/admin-graphql/
         queries.md
@@ -45,7 +46,7 @@ Output structure:
           Product.md
           Order.md
 
-  The top-level folder (shopify-dev-docs/) is always derived from the hostname,
+  The top-level folder is always the hostname (e.g. shopify.dev/),
   regardless of which sub-path you scrape. Use -o to place it elsewhere.
 
 Incremental workflow:
@@ -128,10 +129,12 @@ Incremental workflow:
       // Write output tree
       const { files, totalBytes } = writeOutput({
         outDir,
-        startUrl: url,
         result,
         useFilter,
       });
+
+      // Rewrite absolute links → relative paths across all .md files
+      const linksFixed = fixLinks(outDir);
 
       // Summary
       const totalKb = (totalBytes / 1024).toFixed(1);
@@ -141,6 +144,7 @@ Incremental workflow:
         `   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`
       );
       console.log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
+      if (linksFixed > 0) console.log(`   Links:   ${linksFixed} files updated with relative links`);
       console.log(`   Browse:  ls -R ${outDir}/`);
       console.log(`   Time:    ${totalSec}s`);
     } catch (err) {
@@ -166,11 +170,11 @@ function parseExclude(raw: string): (string | RegExp)[] {
   });
 }
 
-/** Generate output folder name from URL */
+/** Generate output folder name from URL — just the hostname, losslessly reversible */
 function generateDirName(url: string): string {
   try {
     const u = new URL(url);
-    return u.hostname.replace(/\./g, "-") + "-docs";
+    return u.hostname;
   } catch {
     return "docs";
   }

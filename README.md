@@ -7,10 +7,10 @@ llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 200 \
   --exclude "/^\/\d+\.\d+\.\d+/,/dev"
 ```
 
-Writes to `./reactrouter-com-docs/` in the current directory (folder name derived from hostname). Use `-o ~/docs` to write to `~/docs/reactrouter-com-docs/` instead:
+Writes to `./reactrouter.com/` in the current directory (folder name is the hostname). Use `-o ~/docs` to write to `~/docs/reactrouter.com/` instead:
 
 ```
-reactrouter-com-docs/
+reactrouter.com/
   start/
     modes.md
     framework/
@@ -160,8 +160,8 @@ It's cheap to grab too much and prune later — don't try to get the perfect sco
 4. **Repeat** — cached pages won't be re-fetched (7-day TTL), so iterations are fast
 5. **Prune** — delete folders and files you don't need:
    ```bash
-   rm -rf shopify-dev-docs/docs/api/ajax/
-   rm -rf shopify-dev-docs/docs/api/storefront/
+   rm -rf shopify.dev/docs/api/ajax/
+   rm -rf shopify.dev/docs/api/storefront/
    ```
 
 **Why this works:**
