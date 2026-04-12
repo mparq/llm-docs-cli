@@ -39,11 +39,15 @@ Examples:
     --include "/\\/(products|orders|customers)/"
 
 Tips:
-  Prefer broad crawls over precise filters — extra docs are cheap, missing
-  the right page is expensive. You can always delete files afterward.
+  Run one crawl at a time, sequentially. Do not run in parallel, llm-docs
+  has its own built-in concurrency which will share the same browser instance.
+
+  Prefer broad crawls over precise filters — extra docs are cheap,
+  missing the right page is expensive. Delete files afterward if needed.
 
   Iterate: crawl, inspect with \`llm-docs links\`, then crawl deeper.
-  Multiple runs to the same -o merge cleanly (paths are deterministic).
+  Sequential runs compose well because the output structure is determinstic
+  and the cache means that the next run will only add new links
 
 Filtering (applied in order: --include → --exclude):
   Only same-domain links are followed. These flags narrow further:
