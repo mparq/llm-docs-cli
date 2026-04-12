@@ -13,7 +13,7 @@ import { closeBrowser } from "./extract.ts";
 import { writeOutput } from "./output.ts";
 import { fixLinks } from "./fixlinks.ts";
 import { cacheStats, cacheClear, getCacheDirPath } from "./cache.ts";
-import { outlinks } from "./outlinks.ts";
+import { outlinks, groupOutlinks } from "./outlinks.ts";
 
 const program = new Command();
 
@@ -60,7 +60,17 @@ Filtering (applied in order: --include → --exclude):
 
 After crawling:
   llm-docs links <dir>          Show same-domain URLs not yet scraped.
+  llm-docs links <dir> --group 2   Group by path depth for a high-level view.
   llm-docs links <dir> --fix    Also rewrite absolute URLs → relative paths.
+
+  Use --group to zoom in iteratively:
+    $ llm-docs links shopify.dev --group 2
+    10x  https://shopify.dev/docs/apps
+     8x  https://shopify.dev/docs/api       ← looks relevant, zoom in
+    $ llm-docs links shopify.dev --group 3
+     3x  https://shopify.dev/docs/api/shopify-cli
+     1x  https://shopify.dev/docs/api/app-home  ← worth pulling in
+    $ llm-docs https://shopify.dev/docs/api/app-home -d 2 -o .
 
 Output structure:
   Files mirror the URL path under a hostname folder:
@@ -244,7 +254,8 @@ program
   .description("Show same-domain URLs not yet scraped; --fix rewrites absolute → relative paths")
   .argument("<dir>", "Output directory (e.g. shopify.dev)")
   .option("--fix", "Rewrite absolute URLs → relative paths in the output files")
-  .action((dir: string, opts: { fix?: boolean }) => {
+  .option("--group <n>", "Group URLs by path depth (e.g. 2 = /docs/api)")
+  .action((dir: string, opts: { fix?: boolean; group?: string }) => {
     if (opts.fix) {
       const linksFixed = fixLinks(dir);
       if (linksFixed > 0) {
@@ -254,12 +265,15 @@ program
       }
     }
 
-    const links = outlinks(dir);
-    if (links.length === 0) {
+    const raw = outlinks(dir);
+    if (raw.length === 0) {
       console.log("No outbound same-domain links found.");
       return;
     }
-    console.log(`${links.length} URLs referenced but not scraped:\n`);
+
+    const links = opts.group ? groupOutlinks(raw, parseInt(opts.group, 10)) : raw;
+    const label = opts.group ? `${links.length} groups` : `${links.length} URLs`;
+    console.log(`${label} referenced but not scraped:\n`);
     for (const { url, references } of links) {
       console.log(`  ${references}x  ${url}`);
     }

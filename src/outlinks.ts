@@ -54,3 +54,24 @@ export function outlinks(outDir: string): OutLink[] {
     .map(([url, refs]) => ({ url, references: refs.size }))
     .sort((a, b) => b.references - a.references);
 }
+
+/**
+ * Group outlinks by truncating URL paths to `level` segments.
+ * e.g. level=2 turns https://shopify.dev/docs/api/admin-graphql into
+ * https://shopify.dev/docs/api with an aggregated count.
+ */
+export function groupOutlinks(links: OutLink[], level: number): OutLink[] {
+  const groups = new Map<string, number>();
+
+  for (const { url, references } of links) {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const truncated = "/" + segments.slice(0, level).join("/");
+    const key = parsed.origin + truncated;
+    groups.set(key, (groups.get(key) ?? 0) + references);
+  }
+
+  return [...groups.entries()]
+    .map(([url, references]) => ({ url, references }))
+    .sort((a, b) => b.references - a.references);
+}
