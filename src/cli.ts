@@ -38,7 +38,7 @@ Examples:
   llm-docs https://docs.example.com/api -m 500 --exclude /changelog
 
 Tips:
-  Run one crawl at a time, sequentially. Do NOT run parallel scrapes.
+  Run one crawl at a time, sequentially. Don't run parallel scrapes.
   llm-docs has built-in concurrency and shares a single browser instance.
 
   Usually you don't need filters. The crawler prioritizes links under
@@ -54,8 +54,10 @@ Filtering:
 
   --exclude /pattern/   Skip matching paths. Useful for known junk
                         (e.g. /changelog, /\\d+\\.\\d+/ for old versions).
-  --include /pattern/   Only follow matching paths. Rarely needed —
-                        prefer a more specific start URL instead.
+  --include /pattern/   Only follow matching paths. Useful for flat
+                        sites (e.g. GraphQL APIs with hundreds of types
+                        at the same level) where you need a few specific
+                        areas: --include "/\\/(products|orders|customers)/"
 
   Both accept comma-separated path prefixes or /regex/ patterns.
   Exclude wins over include when both match.
