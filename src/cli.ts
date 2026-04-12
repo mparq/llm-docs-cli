@@ -35,24 +35,30 @@ program
   .addHelpText("after", `
 Examples:
   llm-docs https://docs.example.com/api
-  llm-docs https://docs.example.com/api -d 3 -m 500 \\
-    --include "/\\/(products|orders|customers)/"
+  llm-docs https://docs.example.com/api -m 500 --exclude /changelog
 
 Tips:
-  Run one crawl at a time, sequentially. Do not run in parallel, llm-docs
-  has its own built-in concurrency which will share the same browser instance.
+  Run one crawl at a time, sequentially. Do NOT run parallel scrapes.
+  llm-docs has built-in concurrency and shares a single browser instance.
 
-  Prefer broad crawls over precise filters — extra docs are cheap,
-  missing the right page is expensive. Delete files afterward if needed.
+  Usually you don't need filters. The crawler prioritizes links under
+  the start URL's path, so just point it at the right section and go.
+  Prefer broad crawls — extra docs are cheap to delete afterward.
 
   Iterate: crawl, inspect with \`llm-docs links\`, then crawl deeper.
-  Sequential runs compose well because the output structure is determinstic
-  and the cache means that the next run will only add new links
+  Runs to the same -o merge cleanly (deterministic paths + cache).
 
-Filtering (applied in order: --include → --exclude):
-  Only same-domain links are followed. These flags narrow further:
-  --include /pattern/           Allowlist — comma-separated prefixes or /regex/.
-  --exclude /pattern/           Blocklist — same syntax, wins over --include.
+Filtering:
+  The crawler only follows same-domain links and prioritizes URLs
+  close to the start path. Most crawls need no filtering at all.
+
+  --exclude /pattern/   Skip matching paths. Useful for known junk
+                        (e.g. /changelog, /\\d+\\.\\d+/ for old versions).
+  --include /pattern/   Only follow matching paths. Rarely needed —
+                        prefer a more specific start URL instead.
+
+  Both accept comma-separated path prefixes or /regex/ patterns.
+  Exclude wins over include when both match.
 
 After crawling:
   llm-docs links <dir>          Show same-domain URLs not yet scraped.
