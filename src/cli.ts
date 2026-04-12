@@ -251,7 +251,7 @@ program
 // Subcommand: links — show unscraped outbound links, optionally rewrite to relative paths
 program
   .command("links")
-  .description("Show same-domain URLs not yet scraped; --fix rewrites absolute → relative paths")
+  .description("Show same-domain URLs not yet scraped; --group <n> to aggregate by path depth, --fix to rewrite links")
   .argument("<dir>", "Output directory (e.g. shopify.dev)")
   .option("--fix", "Rewrite absolute URLs → relative paths in the output files")
   .option("--group <n>", "Group URLs by path depth (e.g. 2 = /docs/api)")
