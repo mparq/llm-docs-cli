@@ -158,6 +158,9 @@ Output structure:
           const short = shortenUrl(pageUrl);
           log(`  ❌ ${short}: ${error.message}`);
         },
+        onLinkFiltered: (filteredUrl) => {
+          log(`  ⤵ skipped ${filteredUrl}`);
+        },
       });
 
       // Write output tree

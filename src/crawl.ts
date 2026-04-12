@@ -26,6 +26,8 @@ export interface CrawlOptions extends ExtractOptions {
   onPageComplete?: (result: ExtractResult, current: number, total: number) => void;
   /** Called when a page errors */
   onPageError?: (url: string, error: Error) => void;
+  /** Called the first time a same-domain link is skipped by filtering */
+  onLinkFiltered?: (url: string) => void;
 }
 
 const DEFAULT_CRAWL: Required<
@@ -79,7 +81,8 @@ export function filterLinks(
   exclude: (string | RegExp)[],
   seen: Set<string>,
   include: (string | RegExp)[] = [],
-  filteredOut?: Set<string>
+  filteredOut?: Set<string>,
+  onLinkFiltered?: (url: string) => void
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
@@ -91,16 +94,19 @@ export function filterLinks(
       if (u.hostname !== base.hostname) return false;
       // Path prefix filter
       if (pathPrefix && !u.pathname.startsWith(pathPrefix)) {
+        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
         filteredOut?.add(normalized);
         return false;
       }
       // Include patterns (if set, link must match at least one)
       if (!isIncluded(normalized, include)) {
+        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
         filteredOut?.add(normalized);
         return false;
       }
       // Exclude patterns
       if (isExcluded(normalized, exclude)) {
+        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
         filteredOut?.add(normalized);
         return false;
       }
@@ -193,7 +199,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include, filteredOut);
+    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include, filteredOut, options.onLinkFiltered);
     for (const link of filtered) {
       if (seen.size >= maxUrls) break;
       const normalized = normalizeUrl(link);
