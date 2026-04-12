@@ -51,9 +51,6 @@ Filtering (applied in order: --path-prefix → --include → --exclude):
   --include /pattern/           Allowlist — comma-separated prefixes or /regex/.
   --exclude /pattern/           Blocklist — same syntax, wins over --include.
 
-  If a crawl returns fewer pages than expected, check the "Filtered" count
-  in the output — a too-narrow --path-prefix is the most common cause.
-
 After crawling:
   llm-docs fixlinks <dir>       Rewrite absolute URLs → relative paths.
 
