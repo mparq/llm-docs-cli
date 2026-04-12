@@ -13,6 +13,8 @@ npm run dev -- <url> # run directly via tsx
 
 Unit tests cover `filter.ts` and `output.ts`. Use `npm run dev -- <url>` to manually verify extraction against real doc sites.
 
+**Never `rm -rf` the cache directory.** Use `--no-cache` to bypass cache for a run. Clearing the cache breaks other in-progress debugging sessions.
+
 ## Architecture
 
 TypeScript, no framework. Six source files, linear pipeline:

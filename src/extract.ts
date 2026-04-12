@@ -60,6 +60,17 @@ export function createTurndown(baseUrl?: string): TurndownService {
         try {
           const absolute = new URL(href, baseUrl).toString();
           const title = el.getAttribute("title");
+          // Block-level content inside <a> (e.g. card grids) breaks
+          // markdown link syntax. Use first line as link text, append rest.
+          if (content.includes("\n")) {
+            const lines = content.split("\n").filter((l) => l.trim());
+            const linkText = lines[0].trim();
+            const rest = lines.slice(1).join("\n").trim();
+            const link = title
+              ? `[${linkText}](${absolute} "${title}")`
+              : `[${linkText}](${absolute})`;
+            return rest ? `\n\n${link}\n\n${rest}\n\n` : `\n\n${link}\n\n`;
+          }
           return title
             ? `[${content}](${absolute} "${title}")`
             : `[${content}](${absolute})`;
@@ -372,7 +383,7 @@ export async function extractMarkdown(
     // feedback widgets. Do this before dt simplification.
     await page.evaluate(() => {
       document.querySelectorAll(
-        "a[data-markdown='remove'], .visuallyHidden, .sr-only, .visually-hidden"
+        "[data-markdown='remove'], .visuallyHidden, .sr-only, .visually-hidden"
       ).forEach((el) => el.remove());
     });
 
