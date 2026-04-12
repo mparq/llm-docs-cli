@@ -38,20 +38,12 @@ Examples:
   llm-docs https://docs.example.com/api -d 2 -m 500 \\
     --include "/\\/(products|orders|customers)/"
 
-Recommendations:
-  In practice, casting a wide docs net beats trying to be a precise fisherman.
-  The cost of pulling in too many docs is minimal compared to missing that one
-  important library note that would have saved hours of debugging later.
+Tips:
+  Prefer broad crawls over precise filters — extra docs are cheap, missing
+  the right page is expensive. You can always delete files afterward.
 
-  llm-docs has powerful filtering capabilities but avoid using them too early,
-  prefer broader crawls. It's very cheap to remove files on disk later.
-
-  It's also recommended to run sequentially, not in parallel. Crawl, read the
-  output and understand the structure with \`llm-docs links\` and decide the
-  next best net to cast.
-
-  llm-docs composes nicely. Use multiple runs to the same -o directory. Output
-  paths are deterministic (hostname + URL path), so runs merge nicely.
+  Iterate: crawl, inspect with \`llm-docs links\`, then crawl deeper.
+  Multiple runs to the same -o merge cleanly (paths are deterministic).
 
 Filtering (applied in order: --include → --exclude):
   Only same-domain links are followed. These flags narrow further:

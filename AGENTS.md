@@ -22,11 +22,12 @@ TypeScript, no framework. Six source files, linear pipeline:
 ```
 src/
   cli.ts        CLI entrypoint (commander). Parses args, wires everything together.
-  crawl.ts      BFS crawler. Depth-limited, concurrent, deduplicating. Calls extract per page.
+  crawl.ts      Prefix-priority crawler. Depth-limited, concurrent, deduplicating. Calls extract per page.
   extract.ts    Core pipeline: Playwright render → Readability extraction → Turndown markdown.
                 Manages shared browser instance. Fallback selector chain when Readability fails.
   filter.ts     Post-processing filters on markdown. All code-block-aware (track ``` boundaries).
   output.ts     Writes directory tree. Rewrites inter-page links to relative paths.
+  vendors.ts    Site-specific DOM and markdown rules (e.g. Shopify). Safe no-ops on other sites.
   cache.ts      File-based cache (~/.cache/llm-docs), 7-day TTL, keyed by URL hash.
 ```
 
