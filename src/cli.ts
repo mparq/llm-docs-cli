@@ -39,14 +39,19 @@ Examples:
     --include "/\\/(products|orders|customers)/"
 
 Recommendations:
-  - One broad crawl beats many narrow ones — each run pays browser startup
-    cost, and pages are cached so widening filters is free.
-  - Run sequentially, not in parallel. Crawl once, read the output to learn
-    the site's URL structure, then refine with another crawl if needed.
-  - After crawling, run \`llm-docs links <dir>\` to see what same-domain pages
-    are referenced but not yet scraped — useful for deciding what to expand.
-  - Multiple runs to the same -o directory compose naturally — output paths
-    are deterministic (hostname + URL path), so runs merge without conflicts.
+  In practice, casting a wide docs net beats trying to be a precise fisherman.
+  The cost of pulling in too many docs is minimal compared to missing that one
+  important library note that would have saved hours of debugging later.
+
+  llm-docs has powerful filtering capabilities but avoid using them too early,
+  prefer broader crawls. It's very cheap to remove files on disk later.
+
+  It's also recommended to run sequentially, not in parallel. Crawl, read the
+  output and understand the structure with \`llm-docs links\` and decide the
+  next best net to cast.
+
+  llm-docs composes nicely. Use multiple runs to the same -o directory. Output
+  paths are deterministic (hostname + URL path), so runs merge nicely.
 
 Filtering (applied in order: --include → --exclude):
   Only same-domain links are followed. These flags narrow further:
