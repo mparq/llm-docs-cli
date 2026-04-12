@@ -16,6 +16,8 @@ export interface CrawlOptions extends ExtractOptions {
   pathPrefix?: string;
   /** Exclude URLs matching these patterns (strings or regexes) */
   exclude?: (string | RegExp)[];
+  /** Only follow links matching these patterns (strings or regexes) */
+  include?: (string | RegExp)[];
   /** Skip the file cache */
   noCache?: boolean;
   /** Called when a page starts processing */
@@ -59,13 +61,24 @@ export function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
   });
 }
 
+/** Check if a URL matches any include pattern (empty list = allow all) */
+export function isIncluded(url: string, include: (string | RegExp)[]): boolean {
+  if (include.length === 0) return true;
+  const pathname = new URL(url).pathname;
+  return include.some((pattern) => {
+    if (pattern instanceof RegExp) return pattern.test(pathname);
+    return pathname.startsWith(pattern);
+  });
+}
+
 /** Filter discovered links to only those we should crawl */
 export function filterLinks(
   links: string[],
   baseUrl: string,
   pathPrefix: string,
   exclude: (string | RegExp)[],
-  seen: Set<string>
+  seen: Set<string>,
+  include: (string | RegExp)[] = []
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
@@ -77,6 +90,8 @@ export function filterLinks(
       if (u.hostname !== base.hostname) return false;
       // Path prefix filter
       if (pathPrefix && !u.pathname.startsWith(pathPrefix)) return false;
+      // Include patterns (if set, link must match at least one)
+      if (!isIncluded(normalized, include)) return false;
       // Exclude patterns
       if (isExcluded(normalized, exclude)) return false;
       return true;
@@ -104,6 +119,7 @@ export async function crawl(
   const concurrency = options.concurrency ?? DEFAULT_CRAWL.concurrency;
   const pathPrefix = options.pathPrefix ?? DEFAULT_CRAWL.pathPrefix;
   const exclude = options.exclude ?? [];
+  const include = options.include ?? [];
 
   const extractOpts: ExtractOptions = {
     waitFor: options.waitFor,
@@ -165,7 +181,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen);
+    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include);
     for (const link of filtered) {
       if (seen.size >= maxUrls) break;
       const normalized = normalizeUrl(link);

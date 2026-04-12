@@ -26,6 +26,7 @@ program
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
   .option("-p, --path-prefix <prefix>", "Only follow links under this path")
+  .option("-i, --include <patterns>", "Only follow links matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
@@ -39,6 +40,11 @@ How to scrape effectively — use the crawler, not loops:
 
   By default, crawled links are filtered to the same domain. Use --path-prefix
   to further restrict to a sub-section (e.g. --path-prefix /docs/api).
+  Use --include to allowlist specific paths within a large site — useful when
+  a page has hundreds of links but you only want a few (e.g.
+  --include "/\/mutations\/(product|order)/"). --exclude is applied after
+  --include, so you can combine them to allow a section but remove specific
+  pages (e.g. --include /docs/api --exclude /docs/api/deprecated).
 
     BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
           Launches a playwright browser per URL — slow, serial, no link discovery.
@@ -101,7 +107,8 @@ Output structure:
     const useReadability = opts.readability !== false;
     const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
-    const exclude = parseExclude((opts.exclude as string) || "");
+    const include = parsePatterns((opts.include as string) || "");
+    const exclude = parsePatterns((opts.exclude as string) || "");
     const baseDir = (opts.output as string) || ".";
     const outDir = join(baseDir, generateDirName(url));
 
@@ -111,6 +118,7 @@ Output structure:
     console.log(`   Max pages:   ${maxUrls}`);
     console.log(`   Concurrency: ${concurrency}`);
     if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
+    if (include.length) console.log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) console.log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     console.log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
     console.log(`   Output:      ${outDir}/`);
@@ -122,6 +130,7 @@ Output structure:
         maxUrls,
         concurrency,
         pathPrefix,
+        include,
         exclude,
         noCache,
         waitFor,
@@ -180,7 +189,7 @@ Output structure:
   });
 
 /** Parse --exclude flag: comma-separated, supports /regex/ syntax */
-function parseExclude(raw: string): (string | RegExp)[] {
+function parsePatterns(raw: string): (string | RegExp)[] {
   if (!raw) return [];
   return raw.split(",").map((s) => s.trim()).filter(Boolean).map((s) => {
     // Check for /regex/ syntax
