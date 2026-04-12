@@ -38,12 +38,16 @@ Examples:
   llm-docs https://docs.example.com/api -d 2 -m 500 \\
     --include "/\\/(products|orders|customers)/"
 
-  ONE broad crawl is always better than many narrow ones — each run pays
-  browser startup cost, and pages are cached so widening filters is free.
-
-  Multiple runs to the same -o directory compose naturally — output paths
-  are deterministic (hostname + URL path), so runs with different filters
-  merge into one tree without duplicates or conflicts.
+Recommendations:
+  - One broad crawl beats many narrow ones — each run pays browser startup
+    cost, and pages are cached so widening filters is free.
+  - Run sequentially, not in parallel. Crawl once, read the output to learn
+    the site's URL structure, then refine with another crawl if needed.
+  - Avoid --path-prefix on a first crawl — doc sites reorganize their URL
+    trees over time, so a prefix that looks right may silently miss content.
+    Start broad, then narrow.
+  - Multiple runs to the same -o directory compose naturally — output paths
+    are deterministic (hostname + URL path), so runs merge without conflicts.
 
 Filtering (applied in order: --path-prefix → --include → --exclude):
   Only same-domain links are followed. These flags narrow further:
