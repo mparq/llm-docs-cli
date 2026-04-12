@@ -57,8 +57,14 @@ Filtering — controlling which links get followed:
                              even if they passed --include.
 
   --include and --exclude accept the same syntax: comma-separated path
-  prefixes or /regex/ patterns (e.g. --include "/\/mutations\/(product|order)/").
+  prefixes or /regex/ patterns.
   They compose naturally: --include /docs/api --exclude /docs/api/deprecated.
+
+  Examples:
+    A GraphQL API reference has hundreds of queries/mutations/objects but you
+    only need a few resources — use --include to cherry-pick:
+      llm-docs https://docs.example.com/api/graphql -d 2 -m 200 \\
+        --include "/\\/(queries|mutations)\\/(product|order|customer)/"
 
 Recommended workflow:
   1. Recon:    llm-docs <url> -d 1 -m 10
@@ -68,11 +74,11 @@ Recommended workflow:
   3. Prune:    delete folders/files you don't need.
   4. Repeat:   target sub-sections with --path-prefix or --include.
 
-  If a crawl returns fewer pages than expected, read the fetched files to see
-  what links they contain. --path-prefix often filters out real links because
-  sites use paths that differ from the URL you started from — versioned URLs
-  (/2026-04/...) vs aliases (/latest/...), or different hierarchies entirely.
-  Widen or adjust --path-prefix to match the actual link targets.
+  If a crawl returns fewer pages than expected, check the "Filtered" line in
+  the output — it shows how many same-domain links were discovered but
+  skipped by your filters. --path-prefix is the most common cause: sites
+  often use paths that differ from the URL you started from (versioned URLs,
+  aliases, different hierarchies). Try removing or widening it.
 
   Run \`llm-docs fixlinks <dir>\` after crawling to rewrite absolute URLs in
   the output to relative paths.
@@ -105,17 +111,19 @@ Output structure:
     const baseDir = (opts.output as string) || ".";
     const outDir = join(baseDir, generateDirName(url));
 
-    console.log(`\n🔍 llm-docs — Scraping documentation`);
-    console.log(`   URL:         ${url}`);
-    console.log(`   Depth:       ${depth}`);
-    console.log(`   Max pages:   ${maxUrls}`);
-    console.log(`   Concurrency: ${concurrency}`);
-    if (pathPrefix) console.log(`   Path prefix: ${pathPrefix}`);
-    if (include.length) console.log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
-    if (exclude.length) console.log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
-    console.log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
-    console.log(`   Output:      ${outDir}/`);
-    console.log();
+    const log = makeLogger();
+
+    log(`\n🔍 llm-docs — Scraping documentation`);
+    log(`   URL:         ${url}`);
+    log(`   Depth:       ${depth}`);
+    log(`   Max pages:   ${maxUrls}`);
+    log(`   Concurrency: ${concurrency}`);
+    if (pathPrefix) log(`   Path prefix: ${pathPrefix}`);
+    if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
+    if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
+    log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
+    log(`   Output:      ${outDir}/`);
+    log();
 
     try {
       const result = await crawl(url, {
@@ -128,28 +136,22 @@ Output structure:
         noCache,
         waitFor,
         timeout,
-        onPageStart: (pageUrl, current, total) => {
-          const short = shortenUrl(pageUrl);
-          process.stdout.write(
-            `\r  [${current}/${total}] 🔄 ${short}`.padEnd(80)
-          );
-        },
+        onPageStart: log.isTTY
+          ? (pageUrl: string, current: number, total: number) => {
+            const short = shortenUrl(pageUrl);
+            log.progress(`  [${current}/${total}] 🔄 ${short}`);
+          }
+          : undefined,
         onPageComplete: (pageResult, current, total) => {
           const short = shortenUrl(pageResult.url);
           const kb = (pageResult.markdown.length / 1024).toFixed(1);
           const fromCache = pageResult.elapsed === 0;
           const timing = fromCache ? "cached" : `${pageResult.elapsed}ms`;
-          process.stdout.write(
-            `\r  [${current}/${total}] ${fromCache ? "📦" : "✅"} ${short} (${kb}KB, ${timing})`.padEnd(
-              80
-            ) + "\n"
-          );
+          log(`  [${current}/${total}] ${fromCache ? "📦" : "✅"} ${short} (${kb}KB, ${timing})`);
         },
         onPageError: (pageUrl, error) => {
           const short = shortenUrl(pageUrl);
-          process.stdout.write(
-            `\r  ❌ ${short}: ${error.message}`.padEnd(80) + "\n"
-          );
+          log(`  ❌ ${short}: ${error.message}`);
         },
       });
 
@@ -163,14 +165,15 @@ Output structure:
       // Summary
       const totalKb = (totalBytes / 1024).toFixed(1);
       const totalSec = (result.totalTime / 1000).toFixed(1);
-      console.log(`\n✨ Done!`);
-      console.log(
-        `   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`
-      );
-      console.log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
-      console.log(`   Browse:  ls -R ${outDir}/`);
-      console.log(`   Time:    ${totalSec}s`);
-      console.log(`\n   Tip: run \`llm-docs fixlinks ${outDir}\` to rewrite absolute URLs → relative paths`);
+      log(`\n✨ Done!`);
+      log(`   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`);
+      if (result.filteredLinks > 0) {
+        log(`   Filtered: ${result.filteredLinks} same-domain links skipped by --path-prefix/--include/--exclude`);
+      }
+      log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
+      log(`   Browse:  ls -R ${outDir}/`);
+      log(`   Time:    ${totalSec}s`);
+      log(`\n   Tip: run \`llm-docs fixlinks ${outDir}\` to rewrite absolute URLs → relative paths`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);
       process.exitCode = 1;
@@ -192,6 +195,28 @@ function parsePatterns(raw: string): (string | RegExp)[] {
     // Otherwise treat as a path prefix
     return s;
   });
+}
+
+/**
+ * Logger that uses \r-based in-place overwrites in a TTY,
+ * plain console.log when piped (so LLM agents see every line).
+ */
+function makeLogger() {
+  const isTTY = process.stdout.isTTY ?? false;
+
+  const log = (msg = "") => {
+    if (isTTY) {
+      process.stdout.write(`\r${msg}`.padEnd(80) + "\n");
+    } else {
+      console.log(msg);
+    }
+  };
+  /** In-place overwrite (TTY only, no newline). */
+  log.progress = (msg: string) => {
+    process.stdout.write(`\r${msg}`.padEnd(80));
+  };
+  log.isTTY = isTTY;
+  return log;
 }
 
 /** Generate output folder name from URL — just the hostname, losslessly reversible */

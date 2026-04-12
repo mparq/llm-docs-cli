@@ -78,7 +78,8 @@ export function filterLinks(
   pathPrefix: string,
   exclude: (string | RegExp)[],
   seen: Set<string>,
-  include: (string | RegExp)[] = []
+  include: (string | RegExp)[] = [],
+  filteredOut?: Set<string>
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
@@ -89,11 +90,20 @@ export function filterLinks(
       // Same hostname
       if (u.hostname !== base.hostname) return false;
       // Path prefix filter
-      if (pathPrefix && !u.pathname.startsWith(pathPrefix)) return false;
+      if (pathPrefix && !u.pathname.startsWith(pathPrefix)) {
+        filteredOut?.add(normalized);
+        return false;
+      }
       // Include patterns (if set, link must match at least one)
-      if (!isIncluded(normalized, include)) return false;
+      if (!isIncluded(normalized, include)) {
+        filteredOut?.add(normalized);
+        return false;
+      }
       // Exclude patterns
-      if (isExcluded(normalized, exclude)) return false;
+      if (isExcluded(normalized, exclude)) {
+        filteredOut?.add(normalized);
+        return false;
+      }
       return true;
     } catch {
       return false;
@@ -104,6 +114,8 @@ export function filterLinks(
 export interface CrawlResult {
   pages: ExtractResult[];
   errors: Array<{ url: string; error: string }>;
+  /** Same-domain links that were discovered but skipped by filtering */
+  filteredLinks: number;
   totalTime: number;
 }
 
@@ -129,6 +141,7 @@ export async function crawl(
 
   const start = Date.now();
   const seen = new Set<string>();
+  const filteredOut = new Set<string>();
   const pages: ExtractResult[] = [];
   const errors: Array<{ url: string; error: string }> = [];
 
@@ -180,7 +193,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include);
+    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include, filteredOut);
     for (const link of filtered) {
       if (seen.size >= maxUrls) break;
       const normalized = normalizeUrl(link);
@@ -208,6 +221,7 @@ export async function crawl(
   return {
     pages,
     errors,
+    filteredLinks: filteredOut.size,
     totalTime: Date.now() - start,
   };
 }
