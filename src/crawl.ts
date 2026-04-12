@@ -36,6 +36,26 @@ const DEFAULT_CRAWL: Required<
   concurrency: 5,
 };
 
+/**
+ * Score a URL by how much its path prefix overlaps with a reference path.
+ * Higher score = longer shared prefix = closer to the starting subtree.
+ * Measured in number of shared path segments.
+ */
+export function prefixScore(url: string, referencePath: string): number {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean);
+    const refSegments = referencePath.split("/").filter(Boolean);
+    let shared = 0;
+    for (let i = 0; i < Math.min(segments.length, refSegments.length); i++) {
+      if (segments[i] === refSegments[i]) shared++;
+      else break;
+    }
+    return shared;
+  } catch {
+    return 0;
+  }
+}
+
 /** Normalize a URL for dedup: strip hash, trailing slash */
 export function normalizeUrl(url: string): string {
   try {
@@ -142,10 +162,12 @@ export async function crawl(
   const pages: ExtractResult[] = [];
   const errors: Array<{ url: string; error: string }> = [];
   const capped = new Set<string>();
+  const startPath = new URL(normalizeUrl(startUrl)).pathname;
 
-  // BFS queue: [url, currentDepth]
-  type QueueItem = { url: string; depth: number };
-  let queue: QueueItem[] = [{ url: normalizeUrl(startUrl), depth: 0 }];
+  // Priority queue: URLs with more path-prefix overlap with the start URL
+  // are dequeued first, so we exhaust the targeted subtree before exploring.
+  type QueueItem = { url: string; depth: number; score: number };
+  let queue: QueueItem[] = [{ url: normalizeUrl(startUrl), depth: 0, score: Infinity }];
   seen.add(normalizeUrl(startUrl));
 
   let processed = 0;
@@ -199,7 +221,11 @@ export async function crawl(
         continue;
       }
       seen.add(normalized);
-      queue.push({ url: normalized, depth: currentDepth + 1 });
+      const score = prefixScore(normalized, startPath);
+      // Insert sorted by score descending so highest-priority URLs are at front
+      let i = 0;
+      while (i < queue.length && queue[i].score >= score) i++;
+      queue.splice(i, 0, { url: normalized, depth: currentDepth + 1, score });
     }
   }
 

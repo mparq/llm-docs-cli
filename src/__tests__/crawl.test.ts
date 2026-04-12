@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, isExcluded, isIncluded, filterLinks } from "../crawl.ts";
+import { normalizeUrl, isExcluded, isIncluded, filterLinks, prefixScore } from "../crawl.ts";
 
 describe("normalizeUrl", () => {
   it("should strip hash fragments", () => {
@@ -32,6 +32,28 @@ describe("normalizeUrl", () => {
 
   it("should return invalid URLs as-is", () => {
     expect(normalizeUrl("not-a-url")).toBe("not-a-url");
+  });
+});
+
+describe("prefixScore", () => {
+  it("should return shared segment count", () => {
+    expect(prefixScore("https://example.com/docs/api/hooks", "/docs/api")).toBe(2);
+  });
+
+  it("should return 0 for no overlap", () => {
+    expect(prefixScore("https://example.com/blog/post", "/docs/api")).toBe(0);
+  });
+
+  it("should handle exact match", () => {
+    expect(prefixScore("https://example.com/docs/api", "/docs/api")).toBe(2);
+  });
+
+  it("should handle deeper URLs", () => {
+    expect(prefixScore("https://example.com/docs/api/admin/mutations/productCreate", "/docs/api")).toBe(2);
+  });
+
+  it("should return 0 for root path", () => {
+    expect(prefixScore("https://example.com/blog", "/")).toBe(0);
   });
 });
 
