@@ -33,20 +33,20 @@ program
   .option("--no-filter", "Disable content filtering")
   .option("--no-cache", "Skip file cache")
   .addHelpText("after", `
-How to use — let the crawler discover pages, don't loop:
-  llm-docs is a BFS crawler. Give it a starting URL and it follows links to
-  discover pages. Don't loop over URLs with --depth 0 — that launches a
-  browser per URL, is slow, serial, and misses link discovery.
+How it works:
+  llm-docs is a BFS crawler. Give it a starting URL and it follows same-domain
+  links to discover pages. Only links on the same hostname are followed;
+  off-site links are ignored. Use --path-prefix, --include, and --exclude to
+  narrow further.
+
+  Fetched pages are cached locally, so re-runs with different flags are cheap.
 
     BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
     GOOD: llm-docs https://docs.example.com/api -d 2 -m 500
 
-  Fetched pages are cached locally, so re-runs with different flags are cheap
-  and you can always delete output files you don't need.
-
-Filtering — controlling which links get followed:
-  By default only same-domain links are followed. Three flags narrow further,
-  applied in this order: --path-prefix, then --include, then --exclude.
+Filtering — narrowing which same-domain links get followed:
+  Three flags narrow beyond same-domain, applied in this order:
+  --path-prefix, then --include, then --exclude.
 
   --path-prefix /docs/api    Coarse scoping — only follow links whose path
                              starts with this prefix.
