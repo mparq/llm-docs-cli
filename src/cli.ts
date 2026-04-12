@@ -25,7 +25,6 @@ program
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "50")
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
-  .option("-p, --path-prefix <prefix>", "Only follow links under this path")
   .option("-i, --include <patterns>", "Only follow links matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
@@ -43,15 +42,11 @@ Recommendations:
     cost, and pages are cached so widening filters is free.
   - Run sequentially, not in parallel. Crawl once, read the output to learn
     the site's URL structure, then refine with another crawl if needed.
-  - Avoid --path-prefix on a first crawl — doc sites reorganize their URL
-    trees over time, so a prefix that looks right may silently miss content.
-    Start broad, then narrow.
   - Multiple runs to the same -o directory compose naturally — output paths
     are deterministic (hostname + URL path), so runs merge without conflicts.
 
-Filtering (applied in order: --path-prefix → --include → --exclude):
+Filtering (applied in order: --include → --exclude):
   Only same-domain links are followed. These flags narrow further:
-  --path-prefix /docs/api       Only follow links under this path prefix.
   --include /pattern/           Allowlist — comma-separated prefixes or /regex/.
   --exclude /pattern/           Blocklist — same syntax, wins over --include.
 
@@ -71,7 +66,6 @@ Output structure:
     const timeout = parseInt(opts.timeout as string, 10);
     const useFilter = opts.filter !== false;
     const noCache = opts.cache === false;
-    const pathPrefix = (opts.pathPrefix as string) || "";
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
     const baseDir = (opts.output as string) || ".";
@@ -84,7 +78,6 @@ Output structure:
     log(`   Depth:       ${depth}`);
     log(`   Max pages:   ${maxUrls}`);
     log(`   Concurrency: ${concurrency}`);
-    if (pathPrefix) log(`   Path prefix: ${pathPrefix}`);
     if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
@@ -101,7 +94,6 @@ Output structure:
         depth,
         maxUrls,
         concurrency,
-        pathPrefix,
         include,
         exclude,
         noCache,
@@ -142,7 +134,7 @@ Output structure:
       log(`\n✨ Done!`);
       log(`   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`);
       if (result.filteredLinks > 0) {
-        log(`   Filtered: ${result.filteredLinks} same-domain links skipped by --path-prefix/--include/--exclude`);
+        log(`   Filtered: ${result.filteredLinks} same-domain links skipped by --include/--exclude`);
       }
       if (result.remainingLinks > 0) {
         log(`   Remaining: ${result.remainingLinks} links not visited (increase --max-urls to include them)`);

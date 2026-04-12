@@ -118,29 +118,29 @@ describe("filterLinks", () => {
 
   it("should keep same-domain links", () => {
     const links = ["https://example.com/docs/intro", "https://example.com/api/hooks"];
-    const result = filterLinks(links, baseUrl, "", [], new Set());
+    const result = filterLinks(links, baseUrl, [], new Set());
     expect(result).toEqual(links);
   });
 
   it("should reject cross-domain links", () => {
     const links = ["https://other.com/docs/intro"];
-    const result = filterLinks(links, baseUrl, "", [], new Set());
+    const result = filterLinks(links, baseUrl, [], new Set());
     expect(result).toEqual([]);
   });
 
   it("should reject already-seen URLs", () => {
     const links = ["https://example.com/docs/intro"];
     const seen = new Set(["https://example.com/docs/intro"]);
-    const result = filterLinks(links, baseUrl, "", [], seen);
+    const result = filterLinks(links, baseUrl, [], seen);
     expect(result).toEqual([]);
   });
 
-  it("should filter by path prefix", () => {
+  it("should filter by include prefix", () => {
     const links = [
       "https://example.com/docs/intro",
       "https://example.com/blog/post",
     ];
-    const result = filterLinks(links, baseUrl, "/docs", [], new Set());
+    const result = filterLinks(links, baseUrl, [], new Set(), ["/docs"]);
     expect(result).toEqual(["https://example.com/docs/intro"]);
   });
 
@@ -149,7 +149,7 @@ describe("filterLinks", () => {
       "https://example.com/docs/intro",
       "https://example.com/docs/changelog",
     ];
-    const result = filterLinks(links, baseUrl, "", ["/docs/changelog"], new Set());
+    const result = filterLinks(links, baseUrl, ["/docs/changelog"], new Set());
     expect(result).toEqual(["https://example.com/docs/intro"]);
   });
 
@@ -157,11 +157,11 @@ describe("filterLinks", () => {
     const links = [
       "https://example.com/docs/intro",       // keep
       "https://example.com/docs/changelog",    // excluded
-      "https://example.com/blog/post",         // wrong prefix
+      "https://example.com/blog/post",         // not included
       "https://other.com/docs/page",           // wrong domain
     ];
     const seen = new Set<string>();
-    const result = filterLinks(links, baseUrl, "/docs", ["/docs/changelog"], seen);
+    const result = filterLinks(links, baseUrl, ["/docs/changelog"], seen, ["/docs"]);
     expect(result).toEqual(["https://example.com/docs/intro"]);
   });
 
@@ -173,7 +173,7 @@ describe("filterLinks", () => {
     ];
     // Pre-populate seen with the normalized form
     const seen = new Set(["https://example.com/docs/intro"]);
-    const result = filterLinks(links, baseUrl, "", [], seen);
+    const result = filterLinks(links, baseUrl, [], seen);
     // All three normalize to the seen URL
     expect(result).toHaveLength(0);
   });
@@ -184,7 +184,7 @@ describe("filterLinks", () => {
       "https://example.com/docs/intro/",
     ];
     const seen = new Set<string>();
-    const result = filterLinks(links, baseUrl, "", [], seen);
+    const result = filterLinks(links, baseUrl, [], seen);
     // filterLinks doesn't mutate seen or track within the batch
     // the crawl() function handles dedup after filterLinks returns
     expect(result).toHaveLength(2);
@@ -196,7 +196,7 @@ describe("filterLinks", () => {
       "https://example.com/docs/api/components",
       "https://example.com/docs/guides/intro",
     ];
-    const result = filterLinks(links, baseUrl, "", [], new Set(), ["/docs/api"]);
+    const result = filterLinks(links, baseUrl, [], new Set(), ["/docs/api"]);
     expect(result).toEqual([
       "https://example.com/docs/api/hooks",
       "https://example.com/docs/api/components",
@@ -210,7 +210,7 @@ describe("filterLinks", () => {
       "https://example.com/mutations/customerDelete",
       "https://example.com/queries/shop",
     ];
-    const result = filterLinks(links, baseUrl, "", [], new Set(), [/\/mutations\/(product|order)/]);
+    const result = filterLinks(links, baseUrl, [], new Set(), [/\/mutations\/(product|order)/]);
     expect(result).toEqual([
       "https://example.com/mutations/productCreate",
       "https://example.com/mutations/orderCreate",
@@ -223,18 +223,18 @@ describe("filterLinks", () => {
       "https://example.com/docs/api/deprecated",
       "https://example.com/docs/guides/intro",
     ];
-    const result = filterLinks(links, baseUrl, "", ["/docs/api/deprecated"], new Set(), ["/docs/api"]);
+    const result = filterLinks(links, baseUrl, ["/docs/api/deprecated"], new Set(), ["/docs/api"]);
     expect(result).toEqual(["https://example.com/docs/api/hooks"]);
   });
 
-  it("should apply pathPrefix, include, and exclude together", () => {
+  it("should apply include and exclude together with prefix patterns", () => {
     const links = [
-      "https://example.com/docs/api/hooks",       // keep: matches all
+      "https://example.com/docs/api/hooks",       // keep: included, not excluded
       "https://example.com/docs/api/deprecated",   // excluded
       "https://example.com/docs/guides/intro",     // not included
-      "https://example.com/blog/post",             // wrong prefix
+      "https://example.com/blog/post",             // not included
     ];
-    const result = filterLinks(links, baseUrl, "/docs", ["/docs/api/deprecated"], new Set(), ["/docs/api"]);
+    const result = filterLinks(links, baseUrl, ["/docs/api/deprecated"], new Set(), ["/docs/api"]);
     expect(result).toEqual(["https://example.com/docs/api/hooks"]);
   });
 });

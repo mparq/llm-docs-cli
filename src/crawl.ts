@@ -12,8 +12,6 @@ export interface CrawlOptions extends ExtractOptions {
   maxUrls?: number;
   /** Concurrent page fetches */
   concurrency?: number;
-  /** Filter to only follow links matching this path prefix */
-  pathPrefix?: string;
   /** Exclude URLs matching these patterns (strings or regexes) */
   exclude?: (string | RegExp)[];
   /** Only follow links matching these patterns (strings or regexes) */
@@ -31,12 +29,11 @@ export interface CrawlOptions extends ExtractOptions {
 }
 
 const DEFAULT_CRAWL: Required<
-  Pick<CrawlOptions, "depth" | "maxUrls" | "concurrency" | "pathPrefix">
+  Pick<CrawlOptions, "depth" | "maxUrls" | "concurrency">
 > = {
   depth: 0,
   maxUrls: 50,
   concurrency: 5,
-  pathPrefix: "",
 };
 
 /** Normalize a URL for dedup: strip hash, trailing slash */
@@ -77,7 +74,6 @@ export function isIncluded(url: string, include: (string | RegExp)[]): boolean {
 export function filterLinks(
   links: string[],
   baseUrl: string,
-  pathPrefix: string,
   exclude: (string | RegExp)[],
   seen: Set<string>,
   include: (string | RegExp)[] = [],
@@ -92,12 +88,6 @@ export function filterLinks(
       const u = new URL(normalized);
       // Same hostname
       if (u.hostname !== base.hostname) return false;
-      // Path prefix filter
-      if (pathPrefix && !u.pathname.startsWith(pathPrefix)) {
-        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
-        filteredOut?.add(normalized);
-        return false;
-      }
       // Include patterns (if set, link must match at least one)
       if (!isIncluded(normalized, include)) {
         if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
@@ -137,7 +127,6 @@ export async function crawl(
   const depth = options.depth ?? DEFAULT_CRAWL.depth;
   const maxUrls = options.maxUrls ?? DEFAULT_CRAWL.maxUrls;
   const concurrency = options.concurrency ?? DEFAULT_CRAWL.concurrency;
-  const pathPrefix = options.pathPrefix ?? DEFAULT_CRAWL.pathPrefix;
   const exclude = options.exclude ?? [];
   const include = options.include ?? [];
 
@@ -202,7 +191,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include, filteredOut, options.onLinkFiltered);
+    const filtered = filterLinks(links, startUrl, exclude, seen, include, filteredOut, options.onLinkFiltered);
     for (const link of filtered) {
       const normalized = normalizeUrl(link);
       if (seen.size >= maxUrls) {
