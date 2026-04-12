@@ -152,6 +152,7 @@ export async function crawl(
   const filteredOut = new Set<string>();
   const pages: ExtractResult[] = [];
   const errors: Array<{ url: string; error: string }> = [];
+  const capped = new Set<string>();
 
   // BFS queue: [url, currentDepth]
   type QueueItem = { url: string; depth: number };
@@ -203,8 +204,11 @@ export async function crawl(
     if (currentDepth >= depth) return;
     const filtered = filterLinks(links, startUrl, pathPrefix, exclude, seen, include, filteredOut, options.onLinkFiltered);
     for (const link of filtered) {
-      if (seen.size >= maxUrls) break;
       const normalized = normalizeUrl(link);
+      if (seen.size >= maxUrls) {
+        capped.add(normalized);
+        continue;
+      }
       seen.add(normalized);
       queue.push({ url: normalized, depth: currentDepth + 1 });
     }
@@ -230,7 +234,7 @@ export async function crawl(
     pages,
     errors,
     filteredLinks: filteredOut.size,
-    remainingLinks: queue.length,
+    remainingLinks: capped.size,
     totalTime: Date.now() - start,
   };
 }
