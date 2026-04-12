@@ -40,9 +40,14 @@ How it works:
   narrow further.
 
   Fetched pages are cached locally, so re-runs with different flags are cheap.
+  Prefer one crawl with a wide --include regex over multiple narrow runs —
+  each run pays browser startup cost and filters are just a regex test.
 
     BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
     GOOD: llm-docs https://docs.example.com/api -d 2 -m 500
+
+    BAD:  llm-docs <url> --include "/products/" && llm-docs <url> --include "/orders/"
+    GOOD: llm-docs <url> --include "/\\/(products|orders)/" -m 200
 
 Filtering — narrowing which same-domain links get followed:
   Three flags narrow beyond same-domain, applied in this order:
