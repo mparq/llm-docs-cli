@@ -8,6 +8,7 @@ import { chromium, Browser, BrowserContext } from "playwright";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import TurndownService from "turndown";
+import { earlyDomRules, domRules } from "./vendors.ts";
 
 export interface ExtractOptions {
   /** Time to wait for JS rendering (ms) */
@@ -378,6 +379,11 @@ export async function extractMarkdown(
 
     });
 
+    // Apply vendor-specific early DOM rules (before data-markdown removal)
+    for (const rule of earlyDomRules) {
+      await page.evaluate(rule);
+    }
+
     // Remove elements explicitly tagged for removal from markdown output
     // (anchor links, decorative labels), screen-reader-only text, and
     // feedback widgets. Do this before dt simplification.
@@ -408,6 +414,11 @@ export async function extractMarkdown(
         dt.textContent = parts.join(" · ");
       });
     });
+
+    // Apply vendor-specific DOM rules
+    for (const rule of domRules) {
+      await page.evaluate(rule);
+    }
 
     // Get the rendered HTML
     const html = await page.content();

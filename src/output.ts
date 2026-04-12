@@ -19,6 +19,7 @@ import { mkdirSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { ExtractResult } from "./extract.ts";
 import { filterMarkdown } from "./filter.ts";
+import { applyVendorMarkdownRules } from "./vendors.ts";
 import { CrawlResult } from "./crawl.ts";
 
 /**
@@ -66,6 +67,7 @@ export function writeOutput(opts: WriteOutputOptions): { files: number; totalByt
         aggressiveChrome: true,
       });
     }
+    content = applyVendorMarkdownRules(content);
 
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, content, "utf-8");
