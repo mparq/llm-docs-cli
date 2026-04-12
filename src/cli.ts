@@ -33,74 +33,34 @@ program
   .option("--no-filter", "Disable content filtering")
   .option("--no-cache", "Skip file cache")
   .addHelpText("after", `
-How it works:
-  llm-docs is a BFS crawler. Give it a starting URL and it follows same-domain
-  links to discover pages. Only links on the same hostname are followed;
-  off-site links are ignored. Use --path-prefix, --include, and --exclude to
-  narrow further.
+Examples:
+  llm-docs https://docs.example.com/api -d 2 -m 200
+  llm-docs https://docs.example.com/api -d 2 -m 500 \\
+    --include "/\\/(products|orders|customers)/"
 
-  Fetched pages are cached locally, so re-runs with different flags are cheap.
-  Prefer one crawl with a wide --include regex over multiple narrow runs —
-  each run pays browser startup cost and filters are just a regex test.
+  ONE broad crawl is always better than many narrow ones — each run pays
+  browser startup cost, and pages are cached so widening filters is free.
 
-    BAD:  for url in page1 page2 page3; do llm-docs $url -d 0; done
-    GOOD: llm-docs https://docs.example.com/api -d 2 -m 500
+  Multiple runs to the same -o directory compose naturally — output paths
+  are deterministic (hostname + URL path), so runs with different filters
+  merge into one tree without duplicates or conflicts.
 
-    BAD:  llm-docs <url> --include "/products/" && llm-docs <url> --include "/orders/"
-    GOOD: llm-docs <url> --include "/\\/(products|orders)/" -m 200
+Filtering (applied in order: --path-prefix → --include → --exclude):
+  Only same-domain links are followed. These flags narrow further:
+  --path-prefix /docs/api       Only follow links under this path prefix.
+  --include /pattern/           Allowlist — comma-separated prefixes or /regex/.
+  --exclude /pattern/           Blocklist — same syntax, wins over --include.
 
-Filtering — narrowing which same-domain links get followed:
-  Three flags narrow beyond same-domain, applied in this order:
-  --path-prefix, then --include, then --exclude.
+  If a crawl returns fewer pages than expected, check the "Filtered" count
+  in the output — a too-narrow --path-prefix is the most common cause.
 
-  --path-prefix /docs/api    Coarse scoping — only follow links whose path
-                             starts with this prefix.
-  --include <patterns>       Allowlist — only follow links matching at least
-                             one pattern. Useful when a page has hundreds of
-                             links but you only want a few.
-  --exclude <patterns>       Blocklist — drop links matching any pattern,
-                             even if they passed --include.
-
-  --include and --exclude accept the same syntax: comma-separated path
-  prefixes or /regex/ patterns.
-  They compose naturally: --include /docs/api --exclude /docs/api/deprecated.
-
-  Examples:
-    A GraphQL API reference has hundreds of queries/mutations/objects but you
-    only need a few resources — use --include to cherry-pick:
-      llm-docs https://docs.example.com/api/graphql -d 2 -m 200 \\
-        --include "/\\/(queries|mutations)\\/(product|order|customer)/"
-
-Recommended workflow:
-  1. Recon:    llm-docs <url> -d 1 -m 10
-               See what pages exist and what path structure the site uses.
-  2. Expand:   llm-docs <url> -d 2 -m 500
-               Widen depth/max. Cached pages from step 1 are free.
-  3. Prune:    delete folders/files you don't need.
-  4. Repeat:   target sub-sections with --path-prefix or --include.
-
-  If a crawl returns fewer pages than expected, check the "Filtered" line in
-  the output — it shows how many same-domain links were discovered but
-  skipped by your filters. --path-prefix is the most common cause: sites
-  often use paths that differ from the URL you started from (versioned URLs,
-  aliases, different hierarchies). Try removing or widening it.
-
-  Run \`llm-docs fixlinks <dir>\` after crawling to rewrite absolute URLs in
-  the output to relative paths.
+After crawling:
+  llm-docs fixlinks <dir>       Rewrite absolute URLs → relative paths.
 
 Output structure:
-  Output mirrors the site's URL tree under a hostname folder:
-
-    $ llm-docs https://shopify.dev/docs/api/admin-graphql --depth 2
-    shopify.dev/
-      docs/api/admin-graphql.md
-      docs/api/admin-graphql/
-        2026-04/full-index.md
-        2026-04/mutations/
-          productCreate.md
-          ...
-
-  Use -o to place it elsewhere. Safe to delete, move, or reorganize.
+  Files mirror the URL path under a hostname folder:
+    <output>/shopify.dev/docs/api/admin-graphql.md
+    <output>/shopify.dev/docs/api/admin-graphql/mutations/productCreate.md
 `)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
