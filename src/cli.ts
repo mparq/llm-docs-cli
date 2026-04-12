@@ -13,6 +13,7 @@ import { closeBrowser } from "./extract.ts";
 import { writeOutput } from "./output.ts";
 import { fixLinks } from "./fixlinks.ts";
 import { cacheStats, cacheClear, getCacheDirPath } from "./cache.ts";
+import { outlinks } from "./outlinks.ts";
 
 const program = new Command();
 
@@ -42,6 +43,8 @@ Recommendations:
     cost, and pages are cached so widening filters is free.
   - Run sequentially, not in parallel. Crawl once, read the output to learn
     the site's URL structure, then refine with another crawl if needed.
+  - After crawling, run \`llm-docs links <dir>\` to see what same-domain pages
+    are referenced but not yet scraped — useful for deciding what to expand.
   - Multiple runs to the same -o directory compose naturally — output paths
     are deterministic (hostname + URL path), so runs merge without conflicts.
 
@@ -51,7 +54,8 @@ Filtering (applied in order: --include → --exclude):
   --exclude /pattern/           Blocklist — same syntax, wins over --include.
 
 After crawling:
-  llm-docs fixlinks <dir>       Rewrite absolute URLs → relative paths.
+  llm-docs links <dir>          Show same-domain URLs not yet scraped.
+  llm-docs links <dir> --fix    Also rewrite absolute URLs → relative paths.
 
 Output structure:
   Files mirror the URL path under a hostname folder:
@@ -142,7 +146,7 @@ Output structure:
       log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
       log(`   Browse:  ls -R ${outDir}/`);
       log(`   Time:    ${totalSec}s`);
-      log(`\n   Tip: run \`llm-docs fixlinks ${outDir}\` to rewrite absolute URLs → relative paths`);
+      log(`\n   Tip: run \`llm-docs links ${outDir}\` to see unscraped URLs, add --fix to rewrite links`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);
       process.exitCode = 1;
@@ -229,17 +233,30 @@ program
     }
   });
 
-// Subcommand: fixlinks — rewrite absolute URLs → relative paths
+// Subcommand: links — show unscraped outbound links, optionally rewrite to relative paths
 program
-  .command("fixlinks")
-  .description("Rewrite absolute URLs → relative paths across .md files in an output directory")
+  .command("links")
+  .description("Show same-domain URLs not yet scraped; --fix rewrites absolute → relative paths")
   .argument("<dir>", "Output directory (e.g. shopify.dev)")
-  .action((dir: string) => {
-    const linksFixed = fixLinks(dir);
-    if (linksFixed > 0) {
-      console.log(`🔗 ${linksFixed} files updated with relative links`);
-    } else {
-      console.log(`🔗 No links to rewrite`);
+  .option("--fix", "Rewrite absolute URLs → relative paths in the output files")
+  .action((dir: string, opts: { fix?: boolean }) => {
+    if (opts.fix) {
+      const linksFixed = fixLinks(dir);
+      if (linksFixed > 0) {
+        console.log(`🔗 ${linksFixed} files updated with relative links`);
+      } else {
+        console.log(`🔗 No links to rewrite`);
+      }
+    }
+
+    const links = outlinks(dir);
+    if (links.length === 0) {
+      console.log("No outbound same-domain links found.");
+      return;
+    }
+    console.log(`${links.length} URLs referenced but not scraped:\n`);
+    for (const { url, references } of links) {
+      console.log(`  ${references}x  ${url}`);
     }
   });
 
