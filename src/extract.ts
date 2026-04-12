@@ -1,14 +1,12 @@
 /**
  * Core markdown extractor: URL → clean markdown
  *
- * Pipeline: Playwright (JS render) → Readability (main content) → Turndown (HTML→MD)
+ * Pipeline: Playwright (JS render) → DOM simplification → Turndown (HTML→MD)
  */
 
 import { chromium, Browser, BrowserContext } from "playwright";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { Readability } from "@mozilla/readability";
-import { JSDOM, VirtualConsole } from "jsdom";
 import TurndownService from "turndown";
 
 export interface ExtractOptions {
@@ -16,8 +14,6 @@ export interface ExtractOptions {
   waitFor?: number;
   /** Max time to wait for page load (ms) */
   timeout?: number;
-  /** Whether to use Readability for main content extraction */
-  useReadability?: boolean;
   /** CSS selector to wait for before extracting */
   waitForSelector?: string;
 }
@@ -25,7 +21,6 @@ export interface ExtractOptions {
 const DEFAULT_OPTIONS: Required<ExtractOptions> = {
   waitFor: 3000,
   timeout: 30000,
-  useReadability: true,
   waitForSelector: "",
 };
 
@@ -37,8 +32,6 @@ export interface ExtractResult {
   links: string[];
   /** Raw HTML length before processing */
   rawHtmlLength: number;
-  /** Whether Readability failed and we used fallback selectors */
-  usedFallback: boolean;
   /** Time taken in ms */
   elapsed: number;
 }
@@ -92,7 +85,7 @@ export function createTurndown(baseUrl?: string): TurndownService {
       if (!code) return _content;
 
       // Try to detect language from class names, or from data-code-language
-      // (set before Readability, which strips class attrs)
+      // (some wrappers strip class attrs during processing)
       const classes = code.className || "";
       const langMatch = classes.match(
         /(?:language|lang|highlight)-(\w+)/
@@ -331,7 +324,7 @@ export async function extractMarkdown(
     // Simplify complex code block wrappers before content extraction.
     // Many doc sites (Shopify, etc.) use CodeMirror-based tabbed code blocks
     // where <pre><code> is buried inside deep wrapper divs with hidden attrs,
-    // aria-hidden, or excessive nesting that Readability strips as non-content.
+    // aria-hidden, or excessive nesting that content extractors strip.
     // Replace these wrappers with their plain <pre><code> children.
     await page.evaluate(() => {
       const wrapperSelectors = [
@@ -340,22 +333,76 @@ export async function extractMarkdown(
         "[class*='code-block']",
         ".cm-editor",
       ];
+      // First pass: convert CodeMirror .cm-content (no <pre>) to <pre><code>
+      document.querySelectorAll(".cm-editor").forEach((editor) => {
+        const cmContent = editor.querySelector(".cm-content");
+        if (!cmContent) return;
+        const lang = cmContent.getAttribute("data-language")
+          || editor.closest("[data-language]")?.getAttribute("data-language")
+          || "";
+        const lines: string[] = [];
+        cmContent.querySelectorAll(".cm-line").forEach((line) => {
+          lines.push(line.textContent || "");
+        });
+        const text = lines.length > 0 ? lines.join("\n") : (cmContent.textContent || "");
+        const pre = document.createElement("pre");
+        const code = document.createElement("code");
+        if (lang) code.className = "language-" + lang;
+        code.textContent = text;
+        pre.appendChild(code);
+        editor.replaceWith(pre);
+      });
+
+      // Second pass: unwrap remaining code block wrappers to expose <pre> children
       for (const sel of wrapperSelectors) {
         document.querySelectorAll(sel).forEach((wrapper) => {
+          if (wrapper.tagName === "PRE") return;
           const pres = wrapper.querySelectorAll("pre");
-          if (pres.length === 0 || wrapper.tagName === "PRE") return;
+          if (pres.length === 0) return;
           const fragment = document.createDocumentFragment();
           pres.forEach((p) => fragment.appendChild(p.cloneNode(true)));
           wrapper.replaceWith(fragment);
         });
       }
+
+    });
+
+    // Remove elements explicitly tagged for removal from markdown output
+    // (anchor links, decorative labels), screen-reader-only text, and
+    // feedback widgets. Do this before dt simplification.
+    await page.evaluate(() => {
+      document.querySelectorAll(
+        "a[data-markdown='remove'], .visuallyHidden, .sr-only, .visually-hidden"
+      ).forEach((el) => el.remove());
+    });
+
+    // Simplify <dt> elements with deep/complex inner DOM.
+    // Flatten to clean text so Turndown can convert them properly.
+    await page.evaluate(() => {
+      document.querySelectorAll("dt").forEach((dt) => {
+        if (dt.children.length === 0) return;
+        // Remove visual noise: SVGs, hidden elements, aria-hidden, screen-reader-only
+        dt.querySelectorAll("svg, [hidden], [aria-hidden='true'], .visuallyHidden, .sr-only, .visually-hidden").forEach((el) => el.remove());
+        // Collect text from each direct child, deduplicating
+        const seen = new Set<string>();
+        const parts: string[] = [];
+        for (const child of dt.children) {
+          const text = child.textContent?.trim() || "";
+          if (text && !seen.has(text)) {
+            seen.add(text);
+            parts.push(text);
+          }
+        }
+        if (parts.length === 0) return;
+        dt.textContent = parts.join(" · ");
+      });
     });
 
     // Get the rendered HTML
     const html = await page.content();
     const pageTitle = await page.title();
 
-    // Extract same-domain links from raw HTML before Readability mangles them
+    // Extract same-domain links from raw HTML
     const links = await page.evaluate((pageUrl: string) => {
       const base = new URL(pageUrl);
       const seen = new Set<string>();
@@ -398,95 +445,51 @@ export async function extractMarkdown(
       return results;
     }, url);
 
-    // Extract main content with Readability
-    let contentHtml: string;
+    // Extract main content, preserving API doc structures:
+    // <dl>/<dt>/<dd>, code examples in <aside> panels, etc.
     let title = pageTitle;
-    let usedFallback = false;
+    const contentHtml: string = await page.evaluate(`
+      (() => {
+        var CHROME = "nav, header, footer, .sidebar, .nav, .header, .footer, " +
+          "[role='navigation'], [role='banner'], [role='contentinfo'], " +
+          "[role='complementary'], [aria-label='breadcrumb'], " +
+          ".version-selector, .theme-toggle, .search-bar, " +
+          ".table-of-contents, .toc, .page-nav, .edit-page, " +
+          ".skip-to-content";
 
-    if (opts.useReadability) {
-      const virtualConsole = new VirtualConsole();
-      const dom = new JSDOM(html, { url, virtualConsole });
+        var CONTENT_ROOTS = [
+          ".sl-markdown-content",
+          ".markdown-body",
+          ".docs-content",
+          ".doc-content",
+          ".content-body",
+          "#content",
+          ".content",
+          "main article",
+          "article",
+          "main",
+          "[role='main']",
+        ];
 
-      // Readability strips class attrs from <code> elements, losing language
-      // hints like "language-html". Preserve them as data-language on <pre>.
-      dom.window.document
-        .querySelectorAll("pre > code[class]")
-        .forEach((code) => {
-          const match = (code.className || "").match(
-            /(?:language|lang|highlight)-(\w+)/
-          );
-          if (match) {
-            code.parentElement!.setAttribute("data-code-language", match[1]);
-          }
-        });
-
-      const reader = new Readability(dom.window.document, {
-        charThreshold: 100,
-      });
-      const article = reader.parse();
-
-      // Check if Readability gave us enough content
-      const MIN_READABILITY_LENGTH = 1000;
-      if (
-        article &&
-        article.content &&
-        article.content.length >= MIN_READABILITY_LENGTH
-      ) {
-        contentHtml = article.content;
-        title = article.title || pageTitle;
-      } else {
-        // Readability returned too little — try semantic selectors
-        if (article && article.content) {
-          console.warn(
-            `[extract] Readability returned only ${article.content.length} chars for ${url}, trying semantic selectors`
-          );
-        } else {
-          console.warn(
-            `[extract] Readability couldn't parse ${url}, trying semantic selectors`
-          );
+        function stripChrome(el) {
+          var clone = el.cloneNode(true);
+          clone.querySelectorAll(CHROME).forEach(function(j) { j.remove(); });
+          return clone;
         }
 
-        usedFallback = true;
-        contentHtml = await page.evaluate(`
-          (() => {
-            const JUNK = "nav, header, footer, aside, .sidebar, .nav, .header, .footer, " +
-              "[role='navigation'], [role='banner'], [role='contentinfo'], " +
-              "[role='complementary'], [aria-label='breadcrumb'], " +
-              ".version-selector, .theme-toggle, .search-bar, " +
-              ".table-of-contents, .toc, .page-nav, .edit-page";
+        var root = null;
+        for (var i = 0; i < CONTENT_ROOTS.length; i++) {
+          var el = document.querySelector(CONTENT_ROOTS[i]);
+          if (el && el.innerHTML.length > 500) {
+            root = el;
+            break;
+          }
+        }
+        if (!root) root = document.body;
 
-            function stripJunk(el) {
-              var clone = el.cloneNode(true);
-              clone.querySelectorAll(JUNK).forEach(function(j) { j.remove(); });
-              return clone;
-            }
-
-            var selectors = [
-              ".sl-markdown-content",
-              ".markdown-body",
-              ".docs-content",
-              ".doc-content",
-              ".content-body",
-              "#content",
-              ".content",
-              "main article",
-              "article",
-              "main",
-              "[role='main']",
-            ];
-            for (var i = 0; i < selectors.length; i++) {
-              var el = document.querySelector(selectors[i]);
-              if (el && el.innerHTML.length > 500) {
-                return stripJunk(el).innerHTML;
-              }
-            }
-            return stripJunk(document.body).innerHTML;
-          })()
-        `);
-      }
-    } else {
-      contentHtml = await page.evaluate(() => document.body.innerHTML);
-    }
+        return stripChrome(root).innerHTML;
+      })()
+    `);
 
     // Convert to markdown
     const turndown = createTurndown(url);
@@ -519,7 +522,6 @@ export async function extractMarkdown(
       markdown,
       links,
       rawHtmlLength: html.length,
-      usedFallback,
       elapsed: Date.now() - start,
     };
   } finally {

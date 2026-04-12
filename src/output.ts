@@ -63,7 +63,7 @@ export function writeOutput(opts: WriteOutputOptions): { files: number; totalByt
     let content = page.markdown;
     if (useFilter) {
       content = filterMarkdown(content, {
-        aggressiveChrome: page.usedFallback,
+        aggressiveChrome: true,
       });
     }
 

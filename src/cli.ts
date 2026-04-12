@@ -31,7 +31,6 @@ program
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
-  .option("--no-readability", "Disable Readability (use raw body)")
   .option("--no-cache", "Skip file cache")
   .addHelpText("after", `
 How to use — let the crawler discover pages, don't loop:
@@ -99,7 +98,6 @@ Output structure:
     const waitFor = parseInt(opts.wait as string, 10);
     const timeout = parseInt(opts.timeout as string, 10);
     const useFilter = opts.filter !== false;
-    const useReadability = opts.readability !== false;
     const noCache = opts.cache === false;
     const pathPrefix = (opts.pathPrefix as string) || "";
     const include = parsePatterns((opts.include as string) || "");
@@ -130,7 +128,6 @@ Output structure:
         noCache,
         waitFor,
         timeout,
-        useReadability,
         onPageStart: (pageUrl, current, total) => {
           const short = shortenUrl(pageUrl);
           process.stdout.write(

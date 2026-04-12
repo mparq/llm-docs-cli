@@ -250,7 +250,7 @@ export function cleanWhitespace(content: string): string {
 }
 
 /**
- * Aggressive chrome stripping for pages where Readability failed.
+ * Aggressive chrome stripping for doc pages with residual UI elements.
  * These patterns are too broad for general use but safe when we know
  * the content came from a raw selector fallback.
  */
@@ -309,7 +309,7 @@ export interface FilterOptions {
   emptySections?: boolean;
   formattingArtifacts?: boolean;
   deduplicate?: boolean;
-  /** Enable aggressive chrome stripping (for Readability fallback pages) */
+  /** Enable aggressive chrome stripping */
   aggressiveChrome?: boolean;
 }
 

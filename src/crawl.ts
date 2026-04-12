@@ -124,7 +124,6 @@ export async function crawl(
   const extractOpts: ExtractOptions = {
     waitFor: options.waitFor,
     timeout: options.timeout,
-    useReadability: options.useReadability,
     waitForSelector: options.waitForSelector,
   };
 
