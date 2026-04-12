@@ -122,6 +122,8 @@ export interface CrawlResult {
   errors: Array<{ url: string; error: string }>;
   /** Same-domain links that were discovered but skipped by filtering */
   filteredLinks: number;
+  /** Links remaining in the BFS queue when --max-urls was reached */
+  remainingLinks: number;
   totalTime: number;
 }
 
@@ -228,6 +230,7 @@ export async function crawl(
     pages,
     errors,
     filteredLinks: filteredOut.size,
+    remainingLinks: queue.length,
     totalTime: Date.now() - start,
   };
 }

@@ -144,6 +144,9 @@ Output structure:
       if (result.filteredLinks > 0) {
         log(`   Filtered: ${result.filteredLinks} same-domain links skipped by --path-prefix/--include/--exclude`);
       }
+      if (result.remainingLinks > 0) {
+        log(`   Remaining: ${result.remainingLinks} links not visited (increase --max-urls to include them)`);
+      }
       log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
       log(`   Browse:  ls -R ${outDir}/`);
       log(`   Time:    ${totalSec}s`);
