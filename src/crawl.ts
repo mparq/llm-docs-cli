@@ -74,9 +74,9 @@ export function isIncluded(url: string, include: (string | RegExp)[]): boolean {
 export function filterLinks(
   links: string[],
   baseUrl: string,
-  exclude: (string | RegExp)[],
   seen: Set<string>,
   include: (string | RegExp)[] = [],
+  exclude: (string | RegExp)[] = [],
   filteredOut?: Set<string>,
   onLinkFiltered?: (url: string) => void
 ): string[] {
@@ -191,7 +191,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, exclude, seen, include, filteredOut, options.onLinkFiltered);
+    const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, options.onLinkFiltered);
     for (const link of filtered) {
       const normalized = normalizeUrl(link);
       if (seen.size >= maxUrls) {
