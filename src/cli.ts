@@ -3,7 +3,7 @@
  * llm-docs CLI — Scrape JS-heavy doc sites into clean LLM-friendly markdown.
  *
  * Usage:
- *   llm-docs https://reactrouter.com/start/modes --depth 2 --max-urls 50
+ *   llm-docs https://reactrouter.com/start/modes --depth 3 --max-urls 200
  */
 
 import { Command } from "commander";
@@ -22,8 +22,8 @@ program
   .description("Scrape documentation sites into clean LLM-friendly markdown")
   .version("0.1.0")
   .argument("<url>", "Documentation URL to scrape")
-  .option("-d, --depth <n>", "Crawl depth (1 = only direct links from <url>)", "2")
-  .option("-m, --max-urls <n>", "Maximum pages to scrape", "50")
+  .option("-d, --depth <n>", "Crawl depth (1 = only direct links from <url>)", "3")
+  .option("-m, --max-urls <n>", "Maximum pages to scrape", "200")
   .option("-c, --concurrency <n>", "Concurrent page fetches", "5")
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
   .option("-i, --include <patterns>", "Only follow links matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
@@ -34,8 +34,8 @@ program
   .option("--no-cache", "Skip file cache")
   .addHelpText("after", `
 Examples:
-  llm-docs https://docs.example.com/api -d 2 -m 200
-  llm-docs https://docs.example.com/api -d 2 -m 500 \\
+  llm-docs https://docs.example.com/api
+  llm-docs https://docs.example.com/api -d 3 -m 500 \\
     --include "/\\/(products|orders|customers)/"
 
 Tips:

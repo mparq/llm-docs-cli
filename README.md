@@ -38,8 +38,8 @@ npm install        # Chromium auto-installs on first run
 # Single page
 npm run dev -- https://reactrouter.com/start/framework/routing -d 0
 
-# Crawl an API reference
-npm run dev -- https://shopify.dev/docs/api/app-home -d 2 -m 200
+# Crawl an API reference (defaults: depth 3, max 200 pages)
+npm run dev -- https://shopify.dev/docs/api/app-home
 
 # Explore iteratively
 npm run dev -- https://shopify.dev/docs/api -d 1 -m 20
