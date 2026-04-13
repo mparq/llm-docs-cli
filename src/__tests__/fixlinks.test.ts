@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { rewriteAbsoluteLinks, fixLinks } from "../fixlinks.ts";
+import { rewriteAbsoluteLinks, rewriteBrokenRelativeLinks, fixLinks } from "../fixlinks.ts";
 
 describe("rewriteAbsoluteLinks", () => {
   const existing = new Set([
@@ -60,6 +60,75 @@ describe("rewriteAbsoluteLinks", () => {
     const md = "Back to [home](https://example.com/).";
     const result = rewriteAbsoluteLinks(md, "docs/intro.md", existing, "example.com");
     expect(result).toBe("Back to [home](../index.md).");
+  });
+});
+
+describe("rewriteBrokenRelativeLinks", () => {
+  let tmpDir: string;
+  let outDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(tmpdir(), `broken-rel-test-${Date.now()}`);
+    outDir = join(tmpDir, "example.com");
+    mkdirSync(join(outDir, "docs", "guides"), { recursive: true });
+    mkdirSync(join(outDir, "api"), { recursive: true });
+    // Only create docs/intro.md — other targets are intentionally missing
+    writeFileSync(join(outDir, "docs/intro.md"), "exists", "utf-8");
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("should rewrite broken relative link to absolute URL", () => {
+    const md = "See [deleted](./deleted.md) page.";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe("See [deleted](https://example.com/docs/deleted) page.");
+  });
+
+  it("should leave working relative links untouched", () => {
+    const md = "See [intro](../intro.md) page.";
+    const result = rewriteBrokenRelativeLinks(md, "docs/guides/routing.md", outDir, "example.com");
+    expect(result).toBe("See [intro](../intro.md) page.");
+  });
+
+  it("should leave absolute links untouched", () => {
+    const md = "See [ext](https://example.com/docs/missing) page.";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe("See [ext](https://example.com/docs/missing) page.");
+  });
+
+  it("should handle relative links with fragments", () => {
+    const md = "See [section](./deleted.md#section) for details.";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe("See [section](https://example.com/docs/deleted#section) for details.");
+  });
+
+  it("should handle relative links with query strings", () => {
+    const md = "See [version](./deleted.md?v=2) for details.";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe("See [version](https://example.com/docs/deleted?v=2) for details.");
+  });
+
+  it("should handle URL-encoded filenames", () => {
+    // Create a file with encoded query in filename (as urlToRelPath produces)
+    writeFileSync(join(outDir, "api/foo%3Fbar%3Dbaz.md"), "exists", "utf-8");
+    const md = "See [missing](../api/missing%3Fx%3D1.md) and [exists](../api/foo%3Fbar%3Dbaz.md).";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toContain("https://example.com/api/missing%3Fx%3D1");
+    expect(result).toContain("../api/foo%3Fbar%3Dbaz.md");
+  });
+
+  it("should rewrite index.md to root URL", () => {
+    const md = "Back to [home](../index.md).";
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe("Back to [home](https://example.com/).");
+  });
+
+  it("should preserve link titles", () => {
+    const md = '[deleted](./deleted.md "Gone page")';
+    const result = rewriteBrokenRelativeLinks(md, "docs/intro.md", outDir, "example.com");
+    expect(result).toBe('[deleted](https://example.com/docs/deleted "Gone page")');
   });
 });
 
@@ -136,6 +205,60 @@ describe("fixLinks", () => {
 
     expect(readFileSync(join(outDir, "docs/intro.md"), "utf-8")).toBe(
       "See [missing](https://example.com/docs/missing)."
+    );
+  });
+
+  it("should rewrite broken relative links back to absolute URLs", () => {
+    const outDir = join(tmpDir, "example.com");
+
+    // intro.md has a relative link to a file that no longer exists
+    writeFileSync(
+      join(outDir, "docs/intro.md"),
+      "See [routing](./guides/routing.md) guide.",
+      "utf-8"
+    );
+    // guides/routing.md does NOT exist (simulating deletion)
+
+    const modified = fixLinks(outDir);
+    expect(modified).toBe(1);
+
+    expect(readFileSync(join(outDir, "docs/intro.md"), "utf-8")).toBe(
+      "See [routing](https://example.com/docs/guides/routing) guide."
+    );
+  });
+
+  it("should handle broken relative links with fragments and query strings", () => {
+    const outDir = join(tmpDir, "example.com");
+
+    writeFileSync(
+      join(outDir, "docs/intro.md"),
+      "See [section](./deleted.md#overview) and [version](./deleted.md?v=2).",
+      "utf-8"
+    );
+
+    const modified = fixLinks(outDir);
+    expect(modified).toBe(1);
+
+    const content = readFileSync(join(outDir, "docs/intro.md"), "utf-8");
+    expect(content).toContain("https://example.com/docs/deleted#overview");
+    expect(content).toContain("https://example.com/docs/deleted?v=2");
+  });
+
+  it("should rewrite broken index.md link to root URL", () => {
+    const outDir = join(tmpDir, "example.com");
+
+    // index.md does not exist
+    writeFileSync(
+      join(outDir, "docs/intro.md"),
+      "Back to [home](../index.md).",
+      "utf-8"
+    );
+
+    const modified = fixLinks(outDir);
+    expect(modified).toBe(1);
+
+    expect(readFileSync(join(outDir, "docs/intro.md"), "utf-8")).toBe(
+      "Back to [home](https://example.com/)."
     );
   });
 });

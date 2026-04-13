@@ -6,7 +6,7 @@
  * file, only what exists on the filesystem right now.
  */
 
-import { readFileSync, writeFileSync, globSync } from "fs";
+import { readFileSync, writeFileSync, globSync, existsSync } from "fs";
 import { basename, join, posix } from "path";
 import { urlToRelPath } from "./output.ts";
 
@@ -26,7 +26,8 @@ export function fixLinks(outDir: string): number {
   for (const relPath of mdFiles) {
     const filePath = join(outDir, relPath);
     const original = readFileSync(filePath, "utf-8");
-    const rewritten = rewriteAbsoluteLinks(original, relPath, existingRelPaths, hostname);
+    let rewritten = rewriteAbsoluteLinks(original, relPath, existingRelPaths, hostname);
+    rewritten = rewriteBrokenRelativeLinks(rewritten, relPath, outDir, hostname);
 
     if (rewritten !== original) {
       writeFileSync(filePath, rewritten, "utf-8");
@@ -81,6 +82,60 @@ export function rewriteAbsoluteLinks(
         return `[${text}](${relLink} "${title}")`;
       }
       return `[${text}](${relLink})`;
+    }
+  );
+}
+
+/**
+ * Rewrite relative links that point to files no longer on disk back to
+ * absolute URLs. This handles the case where files were deleted after a
+ * previous fixLinks pass had already rewritten their URLs to relative paths.
+ */
+export function rewriteBrokenRelativeLinks(
+  markdown: string,
+  currentRelPath: string,
+  outDir: string,
+  hostname: string
+): string {
+  const currentDir = posix.dirname(currentRelPath);
+
+  return markdown.replace(
+    /\[([^\]]*)\]\(([^)]+)\)/g,
+    (match, text, href) => {
+      // Split off title if present
+      const titleMatch = href.match(/^(.+?)\s+"([^"]*)"$/);
+      const rawHref = titleMatch ? titleMatch[1] : href;
+      const title = titleMatch ? titleMatch[2] : null;
+
+      // Skip absolute links
+      if (rawHref.startsWith("http://") || rawHref.startsWith("https://")) return match;
+
+      // Strip fragment and query from the href to get the file path
+      const suffixMatch = rawHref.match(/\.md([#?].*)?$/);
+      if (!suffixMatch) return match; // not a .md link
+      const suffix = suffixMatch[1] ?? ""; // e.g. "#section" or "?v=2"
+      const filePart = rawHref.slice(0, rawHref.length - suffix.length);
+
+      // Resolve relative path to check if target exists
+      const resolved = posix.normalize(posix.join(currentDir, filePart));
+      const targetPath = join(outDir, resolved);
+
+      if (existsSync(targetPath)) return match; // file exists, leave as-is
+
+      // Convert relative path back to absolute URL
+      let urlPath = "/" + resolved.replace(/\.md$/, "");
+      // index.md → root path
+      if (urlPath === "/index") {
+        urlPath = "/";
+      } else if (urlPath.endsWith("/index")) {
+        urlPath = urlPath.slice(0, -"/index".length) + "/";
+      }
+      const absoluteUrl = `https://${hostname}${urlPath}${suffix}`;
+
+      if (title) {
+        return `[${text}](${absoluteUrl} "${title}")`;
+      }
+      return `[${text}](${absoluteUrl})`;
     }
   );
 }
