@@ -34,6 +34,7 @@ program
   .option("--no-cache", "Bypass cached results (still writes to cache)")
   .option("--no-cache-write", "Don't write results to cache")
   .option("--ignore-robots", "Ignore robots.txt rules")
+  .option("-v, --verbose", "Show filtered/skipped links during crawl")
   .addHelpText("after", `
 Examples:
   llm-docs https://docs.example.com/api
@@ -84,6 +85,12 @@ Output structure:
   Files mirror the URL path under a hostname folder:
     <output>/shopify.dev/docs/api/admin-graphql.md
     <output>/shopify.dev/docs/api/admin-graphql/mutations/productCreate.md
+
+  Query strings are URL-encoded into filenames (%3F, %3D, %26) so pages
+  that differ only by query params get separate files:
+    overview%3Fview%3Daspnetcore-8.0.md   ← ?view=aspnetcore-8.0
+    overview%3Fview%3Daspnetcore-9.0.md   ← ?view=aspnetcore-9.0
+    overview.md                           ← no query string
 `)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
@@ -95,6 +102,7 @@ Output structure:
     const noCache = opts.cache === false;
     const noCacheWrite = opts.cacheWrite === false;
     const ignoreRobots = opts.ignoreRobots === true;
+    const verbose = opts.verbose === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
     const baseDir = (opts.output as string) || ".";
@@ -148,9 +156,9 @@ Output structure:
           const short = shortenUrl(pageUrl);
           log(`  ❌ ${short}: ${error.message}`);
         },
-        onLinkFiltered: (filteredUrl) => {
-          log(`  ⤵ skipped ${filteredUrl}`);
-        },
+        onLinkFiltered: verbose
+          ? (filteredUrl) => { log(`  ⤵ skipped ${filteredUrl}`); }
+          : undefined,
       });
 
       // Write output tree
