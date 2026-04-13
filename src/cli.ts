@@ -40,6 +40,21 @@ Examples:
   llm-docs https://docs.example.com/api
   llm-docs https://docs.example.com/api -m 500 --exclude /changelog
 
+How the crawler prioritizes:
+  The crawler uses prefix-priority ordering. Links that share more
+  path segments with the start URL are visited first. This means you
+  can run deep crawls (-d 3, -m 500) and trust that the targeted
+  subtree is exhausted before the budget is spent on unrelated pages.
+
+  Example: starting from learn.microsoft.com/en-us/aspnet/core/mvc,
+  the crawler visits /mvc/controllers/..., /mvc/views/..., /mvc/models/...
+  before wandering into /en-us/dotnet or /en-us/azure. When --max-urls
+  is hit, you get complete coverage of the area you pointed at, not a
+  random sampling across the whole site.
+
+  This also means you usually don't need filters. Just point the
+  crawler at the right section and let the prioritization do the work.
+
 Tips:
   Run one crawl at a time, sequentially. Don't run parallel scrapes.
   llm-docs has built-in concurrency and shares a single browser instance.
@@ -49,23 +64,21 @@ Tips:
   there. Once you know the layout, widen the net with a higher limit.
   Cached pages make re-runs free, so iteration is cheap.
 
-  Usually you don't need filters. The crawler prioritizes links under
-  the start URL's path, so just point it at the right section and go.
-  Prefer broad crawls — extra docs are cheap to delete afterward.
-
 Filtering:
-  The crawler only follows same-domain links and prioritizes URLs
-  close to the start path. Most crawls need no filtering at all.
+  Usually not needed — prefix-priority handles most cases. Filters
+  help when you need to pin a version or narrow a flat site.
 
-  --exclude /pattern/   Skip matching paths. Useful for known junk
-                        (e.g. /changelog, /\\d+\\.\\d+/ for old versions).
-  --include /pattern/   Only follow matching paths. Useful for flat
-                        sites (e.g. GraphQL APIs with hundreds of types
-                        at the same level) where you need a few specific
-                        areas: --include "/\\/(products|orders|customers)/"
+  --include <pattern>   Only follow links matching pattern. Matches
+                        against the full path + query string.
+                        Examples:
+                          --include aspnetcore-8.0    (pin a version)
+                          --include "/\\/(products|orders)/"  (pick types
+                            from a flat GraphQL API reference)
+  --exclude <pattern>   Skip matching links. Same matching rules.
+                          --exclude /changelog
 
   Both accept comma-separated path prefixes or /regex/ patterns.
-  Exclude wins over include when both match.
+  Exclude wins when both match.
 
 After crawling:
   llm-docs links <dir>          Show same-domain URLs not yet scraped.
