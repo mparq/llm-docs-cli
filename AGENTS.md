@@ -6,8 +6,8 @@ CLI that scrapes JS-heavy documentation sites into clean, LLM-friendly markdown 
 
 ```bash
 npm install          # install deps (Chromium auto-installs on first run)
-npm run build        # tsc → dist/
 npm test             # run test suite (vitest)
+npm run typecheck    # tsc --noEmit
 npm run dev -- <url> # run directly via tsx
 ```
 
@@ -17,18 +17,22 @@ Unit tests cover `filter.ts` and `output.ts`. Use `npm run dev -- <url>` to manu
 
 ## Architecture
 
-TypeScript, no framework. Six source files, linear pipeline:
+TypeScript, no framework. Linear pipeline:
 
 ```
 src/
-  cli.ts        CLI entrypoint (commander). Parses args, wires everything together.
+  cli.ts        CLI entrypoint (commander). Default command crawls a URL; subcommands:
+                `cache` (manage cache), `links` (show unscraped URLs, --fix to rewrite).
   crawl.ts      Prefix-priority crawler. Depth-limited, concurrent, deduplicating. Calls extract per page.
-  extract.ts    Core pipeline: Playwright render → Readability extraction → Turndown markdown.
+  extract.ts    Core pipeline: Playwright render → DOM cleanup → Turndown markdown.
                 Manages shared browser instance. Fallback selector chain when Readability fails.
   filter.ts     Post-processing filters on markdown. All code-block-aware (track ``` boundaries).
   output.ts     Writes directory tree. Rewrites inter-page links to relative paths.
-  vendors.ts    Site-specific DOM and markdown rules (e.g. Shopify). Safe no-ops on other sites.
+  vendors.ts    Site-specific DOM and markdown rules (Shopify, Microsoft Learn). Safe no-ops on other sites.
   cache.ts      File-based cache (~/.cache/llm-docs), 7-day TTL, keyed by URL hash.
+  robots.ts     Fetches/parses robots.txt to respect crawl policies (on by default).
+  fixlinks.ts   Post-processing: rewrites absolute URLs to relative paths for local files.
+  outlinks.ts   Scans output for same-domain URLs without local files (unscraped page detection).
 ```
 
-Key libraries: Playwright (headless Chromium), `@mozilla/readability` (content extraction), Turndown (HTML→markdown), JSDOM (DOM for Readability).
+Key libraries: Playwright (headless Chromium), Turndown (HTML→markdown), JSDOM.
