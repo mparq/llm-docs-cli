@@ -5,6 +5,7 @@
 import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.ts";
 import { cacheGet, cacheSet } from "./cache.ts";
 import { fetchRobotsTxt, isAllowedByRobots } from "./robots.ts";
+import { getDefaultScope } from "./vendors.ts";
 
 export interface CrawlOptions extends ExtractOptions {
   /** Max crawl depth (0 = single page) */
@@ -17,6 +18,8 @@ export interface CrawlOptions extends ExtractOptions {
   exclude?: (string | RegExp)[];
   /** Only follow links matching these patterns (strings or regexes) */
   include?: (string | RegExp)[];
+  /** Hard path-prefix boundary — only follow links whose path starts with this */
+  scope?: string;
   /** Skip reading from cache (still writes unless noCacheWrite) */
   noCache?: boolean;
   /** Don't write results to cache */
@@ -96,6 +99,18 @@ export function isIncluded(url: string, include: (string | RegExp)[]): boolean {
   });
 }
 
+/** Check if a URL's path starts with the given scope prefix */
+export function isInScope(url: string, scope: string): boolean {
+  if (scope === "/") return true;
+  try {
+    const pathname = new URL(url).pathname;
+    // Exact match or path continues with /
+    return pathname === scope || pathname.startsWith(scope + "/");
+  } catch {
+    return false;
+  }
+}
+
 /** Filter discovered links to only those we should crawl */
 export function filterLinks(
   links: string[],
@@ -105,7 +120,8 @@ export function filterLinks(
   exclude: (string | RegExp)[] = [],
   filteredOut?: Set<string>,
   onLinkFiltered?: (url: string) => void,
-  robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null
+  robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null,
+  scope: string = "/"
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
@@ -115,6 +131,12 @@ export function filterLinks(
       const u = new URL(normalized);
       // Same hostname
       if (u.hostname !== base.hostname) return false;
+      // Scope check (hard boundary)
+      if (!isInScope(normalized, scope)) {
+        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
+        filteredOut?.add(normalized);
+        return false;
+      }
       // robots.txt check
       if (robots && !isAllowedByRobots(normalized, robots)) {
         if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
@@ -156,6 +178,7 @@ export interface EnqueueContext {
   maxDepth: number;
   include: (string | RegExp)[];
   exclude: (string | RegExp)[];
+  scope: string;
   filteredOut: Set<string>;
   robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null;
   onLinkFiltered?: (url: string) => void;
@@ -172,12 +195,12 @@ export function enqueueLinks(
   currentDepth: number,
   ctx: EnqueueContext
 ): QueueItem[] {
-  const { seen, capped, startUrl, startPath, maxUrls, maxDepth, include, exclude, filteredOut, robots, onLinkFiltered } = ctx;
+  const { seen, capped, startUrl, startPath, maxUrls, maxDepth, include, exclude, scope, filteredOut, robots, onLinkFiltered } = ctx;
   let queue = ctx.queue;
 
   if (currentDepth >= maxDepth) return queue;
 
-  const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, onLinkFiltered, robots);
+  const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, onLinkFiltered, robots, scope);
 
   // Score first, then add highest-scoring links to the queue.
   // This prevents low-priority chrome/nav links from consuming the
@@ -209,6 +232,8 @@ export interface CrawlResult {
   filteredLinks: number;
   /** Links remaining in the BFS queue when --max-urls was reached */
   remainingLinks: number;
+  /** The resolved scope path prefix used for this crawl */
+  scope: string;
   totalTime: number;
 }
 
@@ -224,6 +249,8 @@ export async function crawl(
   const concurrency = options.concurrency ?? DEFAULT_CRAWL.concurrency;
   const exclude = options.exclude ?? [];
   const include = options.include ?? [];
+  const startParsed = new URL(normalizeUrl(startUrl));
+  const scope = options.scope ?? getDefaultScope(startParsed.hostname, startParsed.pathname);
 
   const extractOpts: ExtractOptions = {
     waitFor: options.waitFor,
@@ -269,7 +296,7 @@ export async function crawl(
           options.onPageComplete?.(cached, current, totalKnown);
           queue = enqueueLinks(cached.links, item.depth, {
             queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
-            include, exclude, filteredOut, robots,
+            include, exclude, scope, filteredOut, robots,
             onLinkFiltered: options.onLinkFiltered,
           });
           return;
@@ -287,7 +314,7 @@ export async function crawl(
       options.onPageComplete?.(result, current, totalKnown);
       queue = enqueueLinks(result.links, item.depth, {
         queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
-        include, exclude, filteredOut, robots,
+        include, exclude, scope, filteredOut, robots,
         onLinkFiltered: options.onLinkFiltered,
       });
     } catch (err) {
@@ -318,6 +345,7 @@ export async function crawl(
     errors,
     filteredLinks: filteredOut.size,
     remainingLinks: capped.size,
+    scope,
     totalTime: Date.now() - start,
   };
 }

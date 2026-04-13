@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, isExcluded, isIncluded, filterLinks, prefixScore, enqueueLinks, type QueueItem, type EnqueueContext } from "../crawl.ts";
+import { normalizeUrl, isExcluded, isIncluded, isInScope, filterLinks, prefixScore, enqueueLinks, type QueueItem, type EnqueueContext } from "../crawl.ts";
+import { getDefaultScope } from "../vendors.ts";
 
 describe("normalizeUrl", () => {
   it("should strip hash fragments", () => {
@@ -271,6 +272,84 @@ describe("filterLinks", () => {
   });
 });
 
+describe("isInScope", () => {
+  it("should allow everything when scope is /", () => {
+    expect(isInScope("https://example.com/anything/here", "/")).toBe(true);
+  });
+
+  it("should match exact scope path", () => {
+    expect(isInScope("https://github.com/owner/repo", "/owner/repo")).toBe(true);
+  });
+
+  it("should match paths under scope", () => {
+    expect(isInScope("https://github.com/owner/repo/wiki/Home", "/owner/repo")).toBe(true);
+  });
+
+  it("should reject paths outside scope", () => {
+    expect(isInScope("https://github.com/other/project", "/owner/repo")).toBe(false);
+  });
+
+  it("should not match partial segment prefixes", () => {
+    // /owner/repo-fork should NOT match scope /owner/repo
+    expect(isInScope("https://github.com/owner/repo-fork", "/owner/repo")).toBe(false);
+  });
+
+  it("should handle root path URLs", () => {
+    expect(isInScope("https://example.com/", "/docs")).toBe(false);
+  });
+});
+
+describe("getDefaultScope", () => {
+  it("should return / for unknown hosts", () => {
+    expect(getDefaultScope("docs.example.com", "/guides/intro")).toBe("/");
+  });
+
+  it("should scope github.com to /owner/repo", () => {
+    expect(getDefaultScope("github.com", "/facebook/react/wiki/Home")).toBe("/facebook/react");
+  });
+
+  it("should handle github.com with just owner/repo", () => {
+    expect(getDefaultScope("github.com", "/facebook/react")).toBe("/facebook/react");
+  });
+
+  it("should handle github.com with short path", () => {
+    expect(getDefaultScope("github.com", "/facebook")).toBe("/facebook");
+  });
+});
+
+describe("filterLinks with scope", () => {
+  const baseUrl = "https://github.com/owner/repo";
+
+  it("should reject links outside scope", () => {
+    const links = [
+      "https://github.com/owner/repo/wiki",
+      "https://github.com/other/project",
+      "https://github.com/owner/repo-fork",
+    ];
+    const result = filterLinks(links, baseUrl, new Set(), [], [], undefined, undefined, null, "/owner/repo");
+    expect(result).toEqual(["https://github.com/owner/repo/wiki"]);
+  });
+
+  it("should allow all same-domain links with scope /", () => {
+    const links = [
+      "https://github.com/any/path",
+      "https://github.com/other/thing",
+    ];
+    const result = filterLinks(links, baseUrl, new Set(), [], [], undefined, undefined, null, "/");
+    expect(result).toEqual(links);
+  });
+
+  it("should apply scope before include/exclude", () => {
+    const links = [
+      "https://github.com/owner/repo/wiki/Home",      // in scope, included
+      "https://github.com/owner/repo/issues/1",        // in scope, excluded
+      "https://github.com/other/project/wiki/Home",    // out of scope
+    ];
+    const result = filterLinks(links, baseUrl, new Set(), ["/owner"], ["/owner/repo/issues"], undefined, undefined, null, "/owner/repo");
+    expect(result).toEqual(["https://github.com/owner/repo/wiki/Home"]);
+  });
+});
+
 describe("enqueueLinks", () => {
   function makeCtx(overrides: Partial<EnqueueContext> = {}): EnqueueContext {
     return {
@@ -283,6 +362,7 @@ describe("enqueueLinks", () => {
       maxDepth: 3,
       include: [],
       exclude: [],
+      scope: "/",
       filteredOut: new Set(),
       ...overrides,
     };

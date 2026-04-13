@@ -28,6 +28,7 @@ program
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
   .option("-i, --include <patterns>", "Only follow links matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
+  .option("-s, --scope <path>", "Restrict crawling to URLs under this path prefix (default: / or site profile)")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
@@ -40,17 +41,36 @@ Examples:
   llm-docs https://docs.example.com/api
   llm-docs https://docs.example.com/api -m 500 --exclude /changelog
 
-How the crawler prioritizes:
-  The crawler uses prefix-priority ordering. Links that share more
-  path segments with the start URL are visited first. This means you
-  can run deep crawls (-d 3, -m 500) and trust that the targeted
-  subtree is exhausted before the budget is spent on unrelated pages.
+Scope:
+  --scope restricts which links the crawler will follow. Only URLs
+  whose path starts with the scope prefix are enqueued. This is a
+  hard boundary, not a soft preference.
 
-  Example: starting from learn.microsoft.com/en-us/aspnet/core/mvc,
-  the crawler visits /mvc/controllers/..., /mvc/views/..., /mvc/models/...
-  before wandering into /en-us/dotnet or /en-us/azure. When --max-urls
-  is hit, you get complete coverage of the area you pointed at, not a
-  random sampling across the whole site.
+  Scope is resolved in this order:
+    1. Explicit --scope flag (always wins)
+    2. Site profile (built-in for multi-tenant hosts like GitHub)
+    3. Default: / (whole domain)
+
+  Site profiles auto-narrow scope for multi-tenant hosts where "/"
+  would crawl unrelated content:
+    github.com/owner/repo/wiki  →  scope = /owner/repo
+
+  For dedicated doc sites (docs.example.com), the default is / so
+  the crawler follows all same-domain links — no flag needed.
+
+  Examples:
+    llm-docs https://github.com/owner/repo/wiki
+      → auto-scoped to /owner/repo (site profile)
+    llm-docs https://docs.example.com/guides/intro
+      → scope = / (whole domain, default)
+    llm-docs https://docs.example.com/v2/api --scope /v2
+      → only follows /v2/* links
+
+How the crawler prioritizes:
+  Within scope, links that share more path segments with the start
+  URL are visited first. This means you can run deep crawls (-d 3,
+  -m 500) and trust that the targeted subtree is exhausted before
+  the budget is spent on other in-scope pages.
 
   This also means you usually don't need filters. Just point the
   crawler at the right section and let the prioritization do the work.
@@ -65,8 +85,8 @@ Tips:
   Cached pages make re-runs free, so iteration is cheap.
 
 Filtering:
-  Usually not needed — prefix-priority handles most cases. Filters
-  help when you need to pin a version or narrow a flat site.
+  Usually not needed — scope + prefix-priority handles most cases.
+  Filters help when you need to pin a version or narrow within scope.
 
   --include <pattern>   Only follow links matching pattern. Matches
                         against the full path + query string.
@@ -118,6 +138,7 @@ Output structure:
     const verbose = opts.verbose === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
+    const scope = opts.scope as string | undefined;
     const baseDir = (opts.output as string) || ".";
     const outDir = join(baseDir, generateDirName(url));
 
@@ -128,6 +149,7 @@ Output structure:
     log(`   Depth:       ${depth}`);
     log(`   Max pages:   ${maxUrls}`);
     log(`   Concurrency: ${concurrency}`);
+    if (scope) log(`   Scope:       ${scope}`);
     if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     log(`   robots.txt:  ${ignoreRobots ? "ignored" : "respected"}`);
@@ -147,6 +169,7 @@ Output structure:
         concurrency,
         include,
         exclude,
+        scope,
         noCache,
         noCacheWrite,
         ignoreRobots,
@@ -185,6 +208,7 @@ Output structure:
       const totalKb = (totalBytes / 1024).toFixed(1);
       const totalSec = (result.totalTime / 1000).toFixed(1);
       log(`\n✨ Done!`);
+      if (result.scope !== "/") log(`   Scope:   ${result.scope}`);
       log(`   Pages:   ${result.pages.length} scraped, ${result.errors.length} errors`);
       if (result.filteredLinks > 0) {
         log(`   Filtered: ${result.filteredLinks} same-domain links skipped by --include/--exclude`);
