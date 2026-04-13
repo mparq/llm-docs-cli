@@ -42,12 +42,14 @@ Tips:
   Run one crawl at a time, sequentially. Don't run parallel scrapes.
   llm-docs has built-in concurrency and shares a single browser instance.
 
+  Start small: use a low --max-urls (e.g. -m 20) to scout the site
+  structure, then inspect with \`llm-docs links\` to see what's out
+  there. Once you know the layout, widen the net with a higher limit.
+  Cached pages make re-runs free, so iteration is cheap.
+
   Usually you don't need filters. The crawler prioritizes links under
   the start URL's path, so just point it at the right section and go.
   Prefer broad crawls — extra docs are cheap to delete afterward.
-
-  Iterate: crawl, inspect with \`llm-docs links\`, then crawl deeper.
-  Runs to the same -o merge cleanly (deterministic paths + cache).
 
 Filtering:
   The crawler only follows same-domain links and prioritizes URLs
