@@ -29,7 +29,7 @@ export interface ExtractResult {
   url: string;
   title: string;
   markdown: string;
-  /** Same-domain links discovered in the raw HTML (for crawling) */
+  /** Same-domain links discovered before DOM cleanup (for crawling) */
   links: string[];
   /** Raw HTML length before processing */
   rawHtmlLength: number;
@@ -379,6 +379,50 @@ export async function extractMarkdown(
 
     });
 
+    // Extract same-domain links before any DOM cleanup so vendor rules
+    // and chrome stripping can't accidentally remove discoverable links.
+    const links = await page.evaluate((pageUrl: string) => {
+      const base = new URL(pageUrl);
+      const seen = new Set<string>();
+      const results: string[] = [];
+
+      document.querySelectorAll("a[href]").forEach((a) => {
+        try {
+          const href = (a as HTMLAnchorElement).href;
+          if (!href) return;
+          const u = new URL(href, pageUrl);
+
+          // Same domain only
+          if (u.hostname !== base.hostname) return;
+
+          // Skip non-content links
+          const path = u.pathname.toLowerCase();
+          if (
+            path.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|json|xml|zip|tar|gz|pdf|dmg|pkg)$/) ||
+            path.includes("/search") ||
+            path.includes("/login") ||
+            path.includes("/signin") ||
+            path.includes("/signup")
+          ) return;
+
+          // Normalize: strip hash and trailing slash
+          u.hash = "";
+          u.search = "";
+          let normalized = u.toString();
+          if (normalized.endsWith("/") && u.pathname !== "/") {
+            normalized = normalized.slice(0, -1);
+          }
+
+          if (!seen.has(normalized)) {
+            seen.add(normalized);
+            results.push(normalized);
+          }
+        } catch {}
+      });
+
+      return results;
+    }, url);
+
     // Apply vendor-specific early DOM rules (before data-markdown removal)
     for (const rule of earlyDomRules) {
       await page.evaluate(rule);
@@ -423,49 +467,6 @@ export async function extractMarkdown(
     // Get the rendered HTML
     const html = await page.content();
     const pageTitle = await page.title();
-
-    // Extract same-domain links from raw HTML
-    const links = await page.evaluate((pageUrl: string) => {
-      const base = new URL(pageUrl);
-      const seen = new Set<string>();
-      const results: string[] = [];
-
-      document.querySelectorAll("a[href]").forEach((a) => {
-        try {
-          const href = (a as HTMLAnchorElement).href;
-          if (!href) return;
-          const u = new URL(href, pageUrl);
-
-          // Same domain only
-          if (u.hostname !== base.hostname) return;
-
-          // Skip non-content links
-          const path = u.pathname.toLowerCase();
-          if (
-            path.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|json|xml|zip|tar|gz|pdf|dmg|pkg)$/) ||
-            path.includes("/search") ||
-            path.includes("/login") ||
-            path.includes("/signin") ||
-            path.includes("/signup")
-          ) return;
-
-          // Normalize: strip hash and trailing slash
-          u.hash = "";
-          u.search = "";
-          let normalized = u.toString();
-          if (normalized.endsWith("/") && u.pathname !== "/") {
-            normalized = normalized.slice(0, -1);
-          }
-
-          if (!seen.has(normalized)) {
-            seen.add(normalized);
-            results.push(normalized);
-          }
-        } catch {}
-      });
-
-      return results;
-    }, url);
 
     // Extract main content, preserving API doc structures:
     // <dl>/<dt>/<dd>, code examples in <aside> panels, etc.
