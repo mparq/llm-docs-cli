@@ -4,6 +4,7 @@
 
 import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.ts";
 import { cacheGet, cacheSet } from "./cache.ts";
+import { fetchRobotsTxt, isAllowedByRobots } from "./robots.ts";
 
 export interface CrawlOptions extends ExtractOptions {
   /** Max crawl depth (0 = single page) */
@@ -26,6 +27,8 @@ export interface CrawlOptions extends ExtractOptions {
   onPageError?: (url: string, error: Error) => void;
   /** Called the first time a same-domain link is skipped by filtering */
   onLinkFiltered?: (url: string) => void;
+  /** Ignore robots.txt rules (default: false, i.e. respect robots.txt) */
+  ignoreRobots?: boolean;
 }
 
 const DEFAULT_CRAWL: Required<
@@ -98,7 +101,8 @@ export function filterLinks(
   include: (string | RegExp)[] = [],
   exclude: (string | RegExp)[] = [],
   filteredOut?: Set<string>,
-  onLinkFiltered?: (url: string) => void
+  onLinkFiltered?: (url: string) => void,
+  robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
@@ -108,6 +112,12 @@ export function filterLinks(
       const u = new URL(normalized);
       // Same hostname
       if (u.hostname !== base.hostname) return false;
+      // robots.txt check
+      if (robots && !isAllowedByRobots(normalized, robots)) {
+        if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
+        filteredOut?.add(normalized);
+        return false;
+      }
       // Include patterns (if set, link must match at least one)
       if (!isIncluded(normalized, include)) {
         if (!filteredOut?.has(normalized)) onLinkFiltered?.(normalized);
@@ -155,6 +165,11 @@ export async function crawl(
     timeout: options.timeout,
     waitForSelector: options.waitForSelector,
   };
+
+  // Fetch robots.txt unless opted out
+  const robots = options.ignoreRobots
+    ? null
+    : await fetchRobotsTxt(startUrl);
 
   const start = Date.now();
   const seen = new Set<string>();
@@ -213,7 +228,7 @@ export async function crawl(
   /** Discover and enqueue new links from a completed page */
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, options.onLinkFiltered);
+    const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, options.onLinkFiltered, robots);
     for (const link of filtered) {
       const normalized = normalizeUrl(link);
       if (seen.size >= maxUrls) {

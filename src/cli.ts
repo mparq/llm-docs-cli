@@ -32,6 +32,7 @@ program
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
   .option("--no-cache", "Skip file cache")
+  .option("--ignore-robots", "Ignore robots.txt rules")
   .addHelpText("after", `
 Examples:
   llm-docs https://docs.example.com/api
@@ -89,6 +90,7 @@ Output structure:
     const timeout = parseInt(opts.timeout as string, 10);
     const useFilter = opts.filter !== false;
     const noCache = opts.cache === false;
+    const ignoreRobots = opts.ignoreRobots === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
     const baseDir = (opts.output as string) || ".";
@@ -103,6 +105,7 @@ Output structure:
     log(`   Concurrency: ${concurrency}`);
     if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
+    log(`   robots.txt:  ${ignoreRobots ? "ignored" : "respected"}`);
     log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
     log(`   Output:      ${outDir}/`);
     if (depth === 0) {
@@ -120,6 +123,7 @@ Output structure:
         include,
         exclude,
         noCache,
+        ignoreRobots,
         waitFor,
         timeout,
         onPageStart: log.isTTY
