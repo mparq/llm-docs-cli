@@ -63,10 +63,33 @@ This works especially well for libraries with large API surfaces where you don't
 ## How it works
 
 ```
-URL --> Playwright render --> DOM cleanup --> Turndown (HTML->MD) --> filters --> .md file
+URL
+ │
+ ├─ Playwright render (headless Chromium, JS execution)
+ │
+ ├─ Code block simplification (unwrap CodeMirror, deep wrappers)
+ │
+ ├─ Link extraction ← collects same-domain links from FULL DOM
+ │                     (before any cleanup can remove them)
+ │
+ ├─ DOM cleanup
+ │    ├─ Early vendor DOM rules
+ │    ├─ data-markdown="remove", sr-only removal
+ │    ├─ <dt> simplification
+ │    └─ Vendor DOM rules (Shopify, Microsoft Learn, etc.)
+ │
+ ├─ Content extraction (find main content root, strip chrome)
+ │
+ ├─ Turndown (HTML → markdown)
+ │
+ ├─ Markdown cleanup + vendor markdown rules
+ │
+ └─ Post-processing filters → .md file
 ```
 
 **Rendering:** Playwright launches headless Chromium, waits for JS rendering, blocks images/fonts/media for speed.
+
+**Link discovery:** Links are extracted from the full rendered DOM *before* any cleanup runs. This ensures vendor rules and chrome stripping can't accidentally remove discoverable links that the crawler needs.
 
 **Content extraction:** A selector chain finds the main content area, stripping nav, sidebar, footer, and other chrome. Vendor-specific DOM rules (in `src/vendors.ts`) fix site-specific quirks before conversion.
 
