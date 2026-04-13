@@ -140,6 +140,68 @@ export function filterLinks(
   });
 }
 
+export interface QueueItem {
+  url: string;
+  depth: number;
+  score: number;
+}
+
+export interface EnqueueContext {
+  queue: QueueItem[];
+  seen: Set<string>;
+  capped: Set<string>;
+  startUrl: string;
+  startPath: string;
+  maxUrls: number;
+  maxDepth: number;
+  include: (string | RegExp)[];
+  exclude: (string | RegExp)[];
+  filteredOut: Set<string>;
+  robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null;
+  onLinkFiltered?: (url: string) => void;
+}
+
+/**
+ * Score, filter, and insert discovered links into the priority queue.
+ * High-scoring links get budget priority over low-scoring ones,
+ * preventing chrome/nav links from consuming maxUrls before content links.
+ * Returns the updated queue.
+ */
+export function enqueueLinks(
+  links: string[],
+  currentDepth: number,
+  ctx: EnqueueContext
+): QueueItem[] {
+  const { seen, capped, startUrl, startPath, maxUrls, maxDepth, include, exclude, filteredOut, robots, onLinkFiltered } = ctx;
+  let queue = ctx.queue;
+
+  if (currentDepth >= maxDepth) return queue;
+
+  const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, onLinkFiltered, robots);
+
+  // Score first, then add highest-scoring links to the queue.
+  // This prevents low-priority chrome/nav links from consuming the
+  // maxUrls budget before high-priority content links are even seen.
+  const scored = filtered
+    .map((link) => ({ url: normalizeUrl(link), score: prefixScore(normalizeUrl(link), startPath) }))
+    .filter((item) => !seen.has(item.url))
+    .sort((a, b) => b.score - a.score);
+
+  for (const item of scored) {
+    if (seen.size >= maxUrls) {
+      capped.add(item.url);
+      continue;
+    }
+    seen.add(item.url);
+    // Insert sorted by score descending so highest-priority URLs are at front
+    let i = 0;
+    while (i < queue.length && queue[i].score >= item.score) i++;
+    queue.splice(i, 0, { url: item.url, depth: currentDepth + 1, score: item.score });
+  }
+
+  return queue;
+}
+
 export interface CrawlResult {
   pages: ExtractResult[];
   errors: Array<{ url: string; error: string }>;
@@ -184,7 +246,6 @@ export async function crawl(
 
   // Priority queue: URLs with more path-prefix overlap with the start URL
   // are dequeued first, so we exhaust the targeted subtree before exploring.
-  type QueueItem = { url: string; depth: number; score: number };
   let queue: QueueItem[] = [{ url: normalizeUrl(startUrl), depth: 0, score: Infinity }];
   seen.add(normalizeUrl(startUrl));
 
@@ -206,7 +267,11 @@ export async function crawl(
         if (cached) {
           pages.push(cached);
           options.onPageComplete?.(cached, current, totalKnown);
-          enqueueLinks(cached.links, item.depth);
+          queue = enqueueLinks(cached.links, item.depth, {
+            queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
+            include, exclude, filteredOut, robots,
+            onLinkFiltered: options.onLinkFiltered,
+          });
           return;
         }
       }
@@ -220,37 +285,15 @@ export async function crawl(
 
       pages.push(result);
       options.onPageComplete?.(result, current, totalKnown);
-      enqueueLinks(result.links, item.depth);
+      queue = enqueueLinks(result.links, item.depth, {
+        queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
+        include, exclude, filteredOut, robots,
+        onLinkFiltered: options.onLinkFiltered,
+      });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       errors.push({ url: item.url, error: errMsg });
       options.onPageError?.(item.url, err as Error);
-    }
-  }
-
-  /** Discover and enqueue new links from a completed page */
-  function enqueueLinks(links: string[], currentDepth: number): void {
-    if (currentDepth >= depth) return;
-    const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, options.onLinkFiltered, robots);
-
-    // Score first, then add highest-scoring links to the queue.
-    // This prevents low-priority chrome/nav links from consuming the
-    // maxUrls budget before high-priority content links are even seen.
-    const scored = filtered
-      .map((link) => ({ url: normalizeUrl(link), score: prefixScore(normalizeUrl(link), startPath) }))
-      .filter((item) => !seen.has(item.url))
-      .sort((a, b) => b.score - a.score);
-
-    for (const item of scored) {
-      if (seen.size >= maxUrls) {
-        capped.add(item.url);
-        continue;
-      }
-      seen.add(item.url);
-      // Insert sorted by score descending so highest-priority URLs are at front
-      let i = 0;
-      while (i < queue.length && queue[i].score >= item.score) i++;
-      queue.splice(i, 0, { url: item.url, depth: currentDepth + 1, score: item.score });
     }
   }
 

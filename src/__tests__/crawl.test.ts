@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, isExcluded, isIncluded, filterLinks, prefixScore } from "../crawl.ts";
+import { normalizeUrl, isExcluded, isIncluded, filterLinks, prefixScore, enqueueLinks, type QueueItem, type EnqueueContext } from "../crawl.ts";
 
 describe("normalizeUrl", () => {
   it("should strip hash fragments", () => {
@@ -268,5 +268,104 @@ describe("filterLinks", () => {
     ];
     const result = filterLinks(links, baseUrl, new Set(), ["/docs/api"], ["/docs/api/deprecated"]);
     expect(result).toEqual(["https://example.com/docs/api/hooks"]);
+  });
+});
+
+describe("enqueueLinks", () => {
+  function makeCtx(overrides: Partial<EnqueueContext> = {}): EnqueueContext {
+    return {
+      queue: [],
+      seen: new Set(["https://example.com/docs/mvc/overview"]),
+      capped: new Set(),
+      startUrl: "https://example.com/docs/mvc/overview",
+      startPath: "/docs/mvc/overview",
+      maxUrls: 200,
+      maxDepth: 3,
+      include: [],
+      exclude: [],
+      filteredOut: new Set(),
+      ...overrides,
+    };
+  }
+
+  it("should enqueue high-scoring links before low-scoring ones", () => {
+    // Simulates a page with chrome/nav links (low prefix overlap)
+    // appearing before content links (high prefix overlap) in DOM order
+    const links = [
+      "https://example.com/about",              // score 0
+      "https://example.com/users/me",           // score 0
+      "https://example.com/settings",           // score 0
+      "https://example.com/docs/mvc/controllers", // score 3
+      "https://example.com/docs/mvc/views",       // score 3
+      "https://example.com/docs/intro",           // score 1
+    ];
+
+    const ctx = makeCtx();
+    const queue = enqueueLinks(links, 0, ctx);
+
+    expect(queue.map((q) => q.url)).toEqual([
+      "https://example.com/docs/mvc/controllers",
+      "https://example.com/docs/mvc/views",
+      "https://example.com/docs/intro",
+      "https://example.com/about",
+      "https://example.com/users/me",
+      "https://example.com/settings",
+    ]);
+  });
+
+  it("should give budget priority to high-scoring links when maxUrls is tight", () => {
+    // Regression test: with a small maxUrls budget, chrome links in DOM order
+    // should not consume slots before high-scoring content links.
+    const links = [
+      "https://example.com/junk/a",              // score 0
+      "https://example.com/junk/b",              // score 0
+      "https://example.com/junk/c",              // score 0
+      "https://example.com/docs/mvc/controllers", // score 3
+      "https://example.com/docs/mvc/views",       // score 3
+    ];
+
+    // seen already has the seed URL, maxUrls=4 means only 3 slots left
+    const ctx = makeCtx({ maxUrls: 4 });
+    enqueueLinks(links, 0, ctx);
+
+    // Both high-scoring links should be in seen (enqueued),
+    // junk links should be capped
+    expect(ctx.seen.has("https://example.com/docs/mvc/controllers")).toBe(true);
+    expect(ctx.seen.has("https://example.com/docs/mvc/views")).toBe(true);
+    expect(ctx.capped.size).toBeGreaterThan(0);
+  });
+
+  it("should respect maxDepth and not enqueue at depth limit", () => {
+    const links = ["https://example.com/docs/mvc/controllers"];
+    const ctx = makeCtx({ maxDepth: 2 });
+    const queue = enqueueLinks(links, 2, ctx);
+    expect(queue).toHaveLength(0);
+  });
+
+  it("should preserve query strings as distinct URLs", () => {
+    const links = [
+      "https://example.com/docs/mvc/overview?view=v8",
+      "https://example.com/docs/mvc/overview?view=v9",
+    ];
+    const ctx = makeCtx();
+    enqueueLinks(links, 0, ctx);
+
+    expect(ctx.seen.has("https://example.com/docs/mvc/overview?view=v8")).toBe(true);
+    expect(ctx.seen.has("https://example.com/docs/mvc/overview?view=v9")).toBe(true);
+  });
+
+  it("should apply include filter to query strings", () => {
+    const links = [
+      "https://example.com/docs/mvc/controllers?view=v8",
+      "https://example.com/docs/mvc/views?view=v9",
+      "https://example.com/docs/mvc/models?view=v8",
+    ];
+    const ctx = makeCtx({ include: ["view=v8"] });
+    const queue = enqueueLinks(links, 0, ctx);
+
+    const urls = queue.map((q) => q.url);
+    expect(urls).toContain("https://example.com/docs/mvc/controllers?view=v8");
+    expect(urls).toContain("https://example.com/docs/mvc/models?view=v8");
+    expect(urls).not.toContain("https://example.com/docs/mvc/views?view=v9");
   });
 });
