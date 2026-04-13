@@ -61,12 +61,11 @@ export function prefixScore(url: string, referencePath: string): number {
   }
 }
 
-/** Normalize a URL for dedup: strip hash, trailing slash */
+/** Normalize a URL for dedup: strip hash, keep query string, strip trailing slash */
 export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
     u.hash = "";
-    u.search = "";
     let s = u.toString();
     if (s.endsWith("/") && u.pathname !== "/") s = s.slice(0, -1);
     return s;
@@ -78,20 +77,22 @@ export function normalizeUrl(url: string): string {
 /** Check if a URL matches any exclude pattern */
 export function isExcluded(url: string, exclude: (string | RegExp)[]): boolean {
   if (exclude.length === 0) return false;
-  const pathname = new URL(url).pathname;
+  const u = new URL(url);
+  const full = u.pathname + u.search;
   return exclude.some((pattern) => {
-    if (pattern instanceof RegExp) return pattern.test(pathname);
-    return pathname.startsWith(pattern);
+    if (pattern instanceof RegExp) return pattern.test(full);
+    return full.startsWith(pattern) || full.includes(pattern);
   });
 }
 
 /** Check if a URL matches any include pattern (empty list = allow all) */
 export function isIncluded(url: string, include: (string | RegExp)[]): boolean {
   if (include.length === 0) return true;
-  const pathname = new URL(url).pathname;
+  const u = new URL(url);
+  const full = u.pathname + u.search;
   return include.some((pattern) => {
-    if (pattern instanceof RegExp) return pattern.test(pathname);
-    return pathname.startsWith(pattern);
+    if (pattern instanceof RegExp) return pattern.test(full);
+    return full.startsWith(pattern) || full.includes(pattern);
   });
 }
 
@@ -231,18 +232,25 @@ export async function crawl(
   function enqueueLinks(links: string[], currentDepth: number): void {
     if (currentDepth >= depth) return;
     const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, options.onLinkFiltered, robots);
-    for (const link of filtered) {
-      const normalized = normalizeUrl(link);
+
+    // Score first, then add highest-scoring links to the queue.
+    // This prevents low-priority chrome/nav links from consuming the
+    // maxUrls budget before high-priority content links are even seen.
+    const scored = filtered
+      .map((link) => ({ url: normalizeUrl(link), score: prefixScore(normalizeUrl(link), startPath) }))
+      .filter((item) => !seen.has(item.url))
+      .sort((a, b) => b.score - a.score);
+
+    for (const item of scored) {
       if (seen.size >= maxUrls) {
-        capped.add(normalized);
+        capped.add(item.url);
         continue;
       }
-      seen.add(normalized);
-      const score = prefixScore(normalized, startPath);
+      seen.add(item.url);
       // Insert sorted by score descending so highest-priority URLs are at front
       let i = 0;
-      while (i < queue.length && queue[i].score >= score) i++;
-      queue.splice(i, 0, { url: normalized, depth: currentDepth + 1, score });
+      while (i < queue.length && queue[i].score >= item.score) i++;
+      queue.splice(i, 0, { url: item.url, depth: currentDepth + 1, score: item.score });
     }
   }
 

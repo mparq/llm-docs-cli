@@ -35,9 +35,16 @@ export function urlToRelPath(url: string): string {
   pathname = pathname.replace(/^\/+/, "").replace(/\/+$/, "");
 
   // Root page
-  if (!pathname) return "index.md";
+  if (!pathname && !u.search) return "index.md";
 
-  return pathname + ".md";
+  // Encode query string into filename so different params produce different files.
+  // Uses URL-encoding (%3F, %3D, %26) which is cross-platform safe and
+  // unambiguous since real URL path segments never contain raw `%3F`.
+  const query = u.search
+    ? encodeURIComponent(u.search)
+    : "";
+
+  return (pathname || "index") + query + ".md";
 }
 
 export interface WriteOutputOptions {

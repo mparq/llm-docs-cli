@@ -8,9 +8,9 @@ describe("normalizeUrl", () => {
     );
   });
 
-  it("should strip query strings", () => {
+  it("should preserve query strings", () => {
     expect(normalizeUrl("https://example.com/docs?page=1")).toBe(
-      "https://example.com/docs"
+      "https://example.com/docs?page=1"
     );
   });
 
@@ -24,9 +24,9 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
   });
 
-  it("should handle URLs with both hash and query", () => {
+  it("should strip hash but preserve query string", () => {
     expect(normalizeUrl("https://example.com/docs?q=test#heading")).toBe(
-      "https://example.com/docs"
+      "https://example.com/docs?q=test"
     );
   });
 
@@ -94,6 +94,11 @@ describe("isExcluded", () => {
     expect(isExcluded("https://example.com/2.0/docs", patterns)).toBe(true);
     expect(isExcluded("https://example.com/docs/intro", patterns)).toBe(false);
   });
+
+  it("should match query string substrings", () => {
+    expect(isExcluded("https://example.com/docs?view=v7", ["view=v7"])).toBe(true);
+    expect(isExcluded("https://example.com/docs?view=v8", ["view=v7"])).toBe(false);
+  });
 });
 
 describe("isIncluded", () => {
@@ -132,6 +137,11 @@ describe("isIncluded", () => {
     expect(isIncluded("https://example.com/docs/api/hooks", patterns)).toBe(true);
     expect(isIncluded("https://example.com/mutations/productCreate", patterns)).toBe(true);
     expect(isIncluded("https://example.com/blog/post", patterns)).toBe(false);
+  });
+
+  it("should match query string substrings", () => {
+    expect(isIncluded("https://example.com/docs?view=aspnetcore-8.0", ["aspnetcore-8.0"])).toBe(true);
+    expect(isIncluded("https://example.com/docs?view=aspnetcore-9.0", ["aspnetcore-8.0"])).toBe(false);
   });
 });
 
