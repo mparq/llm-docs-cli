@@ -17,8 +17,10 @@ export interface CrawlOptions extends ExtractOptions {
   exclude?: (string | RegExp)[];
   /** Only follow links matching these patterns (strings or regexes) */
   include?: (string | RegExp)[];
-  /** Skip the file cache */
+  /** Skip reading from cache (still writes unless noCacheWrite) */
   noCache?: boolean;
+  /** Don't write results to cache */
+  noCacheWrite?: boolean;
   /** Called when a page starts processing */
   onPageStart?: (url: string, current: number, total: number) => void;
   /** Called when a page completes */
@@ -197,7 +199,7 @@ export async function crawl(
     options.onPageStart?.(item.url, current, totalKnown);
 
     try {
-      // Check cache first
+      // Check cache first (skip on --no-cache)
       if (!options.noCache) {
         const cached = cacheGet(item.url);
         if (cached) {
@@ -210,8 +212,8 @@ export async function crawl(
 
       const result = await extractMarkdown(item.url, extractOpts);
 
-      // Store in cache
-      if (!options.noCache) {
+      // Store in cache (skip on --no-cache-write)
+      if (!options.noCacheWrite) {
         cacheSet(item.url, result);
       }
 

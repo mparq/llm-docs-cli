@@ -31,7 +31,8 @@ program
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
-  .option("--no-cache", "Skip file cache")
+  .option("--no-cache", "Bypass cached results (still writes to cache)")
+  .option("--no-cache-write", "Don't write results to cache")
   .option("--ignore-robots", "Ignore robots.txt rules")
   .addHelpText("after", `
 Examples:
@@ -92,6 +93,7 @@ Output structure:
     const timeout = parseInt(opts.timeout as string, 10);
     const useFilter = opts.filter !== false;
     const noCache = opts.cache === false;
+    const noCacheWrite = opts.cacheWrite === false;
     const ignoreRobots = opts.ignoreRobots === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
@@ -108,7 +110,7 @@ Output structure:
     if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     log(`   robots.txt:  ${ignoreRobots ? "ignored" : "respected"}`);
-    log(`   Cache:       ${noCache ? "disabled" : getCacheDirPath()}`);
+    log(`   Cache:       ${noCache && noCacheWrite ? "disabled" : noCache ? "skip reads" : noCacheWrite ? "read-only" : getCacheDirPath()}`);
     log(`   Output:      ${outDir}/`);
     if (depth === 0) {
       log();
@@ -125,6 +127,7 @@ Output structure:
         include,
         exclude,
         noCache,
+        noCacheWrite,
         ignoreRobots,
         waitFor,
         timeout,
