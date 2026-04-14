@@ -24,7 +24,7 @@ Inspired by [llm.codes](https://llm.codes) -- an excellent hosted service that c
 - **Composable.** Multiple runs to the same output directory merge cleanly -- paths are deterministic. Crawl one section, inspect, crawl another.
 - **Vendor rules.** Site-specific extraction fixes for popular doc sites (Shopify, etc.). See `src/vendors.ts` to contribute rules for new sites.
 
-All code in this repo is agent-written.
+Fair warning: Most code in this repo is agent-written.
 
 ## Quick start
 
