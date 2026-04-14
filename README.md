@@ -18,11 +18,11 @@ Most documentation lives behind JavaScript-rendered SPAs. `curl` gives you an em
 
 Inspired by [llm.codes](https://llm.codes) -- an excellent hosted service that converts documentation into LLM-optimized markdown. `llm-docs` takes a different approach:
 
-- **Local-first.** Output lives on your filesystem. No API keys, no token limits, no per-page cost.
-- **Crawls, not single pages.** One command pulls an entire API reference by following links.
-- **Prefix-priority crawling.** URLs closer to your starting path are visited first, so the targeted subtree is exhausted before budget is spent on tangential sidebar links.
-- **Composable.** Multiple runs to the same output directory merge cleanly -- paths are deterministic. Crawl one section, inspect, crawl another.
-- **Vendor rules.** Site-specific extraction fixes for popular doc sites (Shopify, etc.). See `src/vendors.ts` to contribute rules for new sites.
+- **Directory tree, not a single file.** Output mirrors the site structure on disk. Agents navigate it with `ls`, `grep`, and `find` -- the same tools they already use for source code -- reading only the pages they need instead of loading everything into context.
+- **Incremental.** Multiple crawls merge into the same tree. Grow, prune, and update sections independently without regenerating everything.
+- **Local-first.** No API keys, no token limits, no per-page cost.
+- **Crawls, not single pages.** One command pulls an entire API reference by following links. Prefix-priority ordering exhausts the targeted subtree before spending budget on tangential sidebar links.
+- **Vendor rules.** Site-specific extraction fixes for popular doc sites (Shopify, Microsoft Learn, etc.). See `src/vendors.ts` to contribute rules for new sites.
 
 Fair warning: Most code in this repo is agent-written.
 
