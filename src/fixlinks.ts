@@ -14,8 +14,8 @@ import { urlToRelPath } from "./output.ts";
  * Walk outDir, rewrite absolute links to relative paths for any .md that
  * exists on disk. Returns the number of files modified.
  */
-export function fixLinks(outDir: string): number {
-  const hostname = basename(outDir);
+export function fixLinks(outDir: string, keepQueryStrings = false, hostname?: string): number {
+  hostname = hostname ?? basename(outDir);
   const mdFiles = globSync("**/*.md", { cwd: outDir });
 
   // Build set of relPaths that exist on disk for fast lookup
@@ -26,7 +26,7 @@ export function fixLinks(outDir: string): number {
   for (const relPath of mdFiles) {
     const filePath = join(outDir, relPath);
     const original = readFileSync(filePath, "utf-8");
-    let rewritten = rewriteAbsoluteLinks(original, relPath, existingRelPaths, hostname);
+    let rewritten = rewriteAbsoluteLinks(original, relPath, existingRelPaths, hostname, keepQueryStrings);
     rewritten = rewriteBrokenRelativeLinks(rewritten, relPath, outDir, hostname);
 
     if (rewritten !== original) {
@@ -46,7 +46,8 @@ export function rewriteAbsoluteLinks(
   markdown: string,
   currentRelPath: string,
   existingRelPaths: Set<string>,
-  hostname: string
+  hostname: string,
+  keepQueryStrings = false
 ): string {
   return markdown.replace(
     /\[([^\]]*)\]\(([^)]+)\)/g,
@@ -61,7 +62,7 @@ export function rewriteAbsoluteLinks(
       try {
         const parsed = new URL(rawUrl);
         if (parsed.hostname === hostname) {
-          targetRelPath = urlToRelPath(rawUrl);
+          targetRelPath = urlToRelPath(rawUrl, keepQueryStrings);
         }
       } catch {
         // Not a valid absolute URL — leave as-is

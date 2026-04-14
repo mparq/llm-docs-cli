@@ -36,6 +36,8 @@ program
   .option("--no-cache-write", "Don't write results to cache")
   .option("--ignore-robots", "Ignore robots.txt rules")
   .option("-v, --verbose", "Show filtered/skipped links during crawl")
+  .option("--keep-query-strings", "Preserve query strings in output filenames")
+  .option("-n, --name <name>", "Custom output directory name (default: hostname from URL)")
   .addHelpText("after", `
 Examples:
   llm-docs https://docs.example.com/api
@@ -119,11 +121,15 @@ Output structure:
     <output>/shopify.dev/docs/api/admin-graphql.md
     <output>/shopify.dev/docs/api/admin-graphql/mutations/productCreate.md
 
-  Query strings are URL-encoded into filenames (%3F, %3D, %26) so pages
-  that differ only by query params get separate files:
+  Use --name to override the folder name (useful for localhost/IP URLs):
+    llm-docs http://127.0.0.1:8000/docs --name my-project-docs
+    → my-project-docs/docs/getting-started.md
+
+  Query strings are stripped from filenames by default. Use
+  --keep-query-strings to preserve them (URL-encoded: %3F, %3D, %26)
+  so pages that differ only by query params get separate files:
     overview%3Fview%3Daspnetcore-8.0.md   ← ?view=aspnetcore-8.0
     overview%3Fview%3Daspnetcore-9.0.md   ← ?view=aspnetcore-9.0
-    overview.md                           ← no query string
 `)
   .action(async (url: string, opts: Record<string, string | boolean>) => {
     const depth = parseInt(opts.depth as string, 10);
@@ -136,11 +142,14 @@ Output structure:
     const noCacheWrite = opts.cacheWrite === false;
     const ignoreRobots = opts.ignoreRobots === true;
     const verbose = opts.verbose === true;
+    const keepQueryStrings = opts.keepQueryStrings === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
     const scope = opts.scope as string | undefined;
+    const customName = opts.name as string | undefined;
     const baseDir = (opts.output as string) || ".";
-    const outDir = join(baseDir, generateDirName(url));
+    const outDir = join(baseDir, customName ?? generateDirName(url));
+    const hostname = getHostname(url);
 
     const log = makeLogger();
 
@@ -173,6 +182,7 @@ Output structure:
         noCache,
         noCacheWrite,
         ignoreRobots,
+        keepQueryStrings,
         waitFor,
         timeout,
         onPageStart: log.isTTY
@@ -202,6 +212,7 @@ Output structure:
         outDir,
         result,
         useFilter,
+        keepQueryStrings,
       });
 
       // Summary
@@ -219,7 +230,8 @@ Output structure:
       log(`   Output:  ${files} files in ${outDir}/ (${totalKb}KB)`);
       log(`   Browse:  ls -R ${outDir}/`);
       log(`   Time:    ${totalSec}s`);
-      log(`\n   Tip: run \`llm-docs links ${outDir}\` to see unscraped URLs, add --fix to rewrite links`);
+      const linksCmd = customName ? `llm-docs links ${outDir} --hostname ${hostname}` : `llm-docs links ${outDir}`;
+      log(`\n   Tip: run \`${linksCmd}\` to see unscraped URLs, add --fix to rewrite links`);
     } catch (err) {
       console.error(`\n❌ Fatal error: ${err}`);
       process.exitCode = 1;
@@ -275,15 +287,25 @@ function generateDirName(url: string): string {
   }
 }
 
+/** Extract hostname from URL for link matching */
+function getHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "localhost";
+  }
+}
+
 /** Shorten a URL for display */
 function shortenUrl(url: string): string {
   try {
     const u = new URL(url);
     const path = u.pathname;
+    const host = u.host; // includes port if non-default
     if (path.length > 50) {
-      return u.hostname + path.slice(0, 25) + "..." + path.slice(-22);
+      return host + path.slice(0, 25) + "..." + path.slice(-22);
     }
-    return u.hostname + path;
+    return host + path;
   } catch {
     return url;
   }
@@ -313,9 +335,13 @@ program
   .argument("<dir>", "Output directory (e.g. shopify.dev)")
   .option("--fix", "Rewrite absolute URLs → relative paths in the output files")
   .option("--group <n>", "Group URLs by path depth (e.g. 2 = /docs/api)")
-  .action((dir: string, opts: { fix?: boolean; group?: string }) => {
+  .option("--keep-query-strings", "Preserve query strings when resolving filenames")
+  .option("--hostname <host>", "Override hostname for link matching (use when --name was used during crawl)")
+  .action((dir: string, opts: { fix?: boolean; group?: string; keepQueryStrings?: boolean; hostname?: string }) => {
+    const keepQueryStrings = opts.keepQueryStrings === true;
+    const hostname = opts.hostname;
     if (opts.fix) {
-      const linksFixed = fixLinks(dir);
+      const linksFixed = fixLinks(dir, keepQueryStrings, hostname);
       if (linksFixed > 0) {
         console.log(`🔗 ${linksFixed} files updated with relative links`);
       } else {
@@ -323,7 +349,7 @@ program
       }
     }
 
-    const raw = outlinks(dir);
+    const raw = outlinks(dir, keepQueryStrings, hostname);
     if (raw.length === 0) {
       console.log("No outbound same-domain links found.");
       return;

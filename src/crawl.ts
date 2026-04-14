@@ -34,6 +34,8 @@ export interface CrawlOptions extends ExtractOptions {
   onLinkFiltered?: (url: string) => void;
   /** Ignore robots.txt rules (default: false, i.e. respect robots.txt) */
   ignoreRobots?: boolean;
+  /** Preserve query strings in URLs for dedup and output (default: false, strips them) */
+  keepQueryStrings?: boolean;
 }
 
 const DEFAULT_CRAWL: Required<
@@ -64,11 +66,12 @@ export function prefixScore(url: string, referencePath: string): number {
   }
 }
 
-/** Normalize a URL for dedup: strip hash, keep query string, strip trailing slash */
-export function normalizeUrl(url: string): string {
+/** Normalize a URL for dedup: strip hash, optionally strip query string, strip trailing slash */
+export function normalizeUrl(url: string, keepQueryStrings = false): string {
   try {
     const u = new URL(url);
     u.hash = "";
+    if (!keepQueryStrings) u.search = "";
     let s = u.toString();
     if (s.endsWith("/") && u.pathname !== "/") s = s.slice(0, -1);
     return s;
@@ -121,11 +124,12 @@ export function filterLinks(
   filteredOut?: Set<string>,
   onLinkFiltered?: (url: string) => void,
   robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null,
-  scope: string = "/"
+  scope: string = "/",
+  keepQueryStrings = false
 ): string[] {
   const base = new URL(baseUrl);
   return links.filter((link) => {
-    const normalized = normalizeUrl(link);
+    const normalized = normalizeUrl(link, keepQueryStrings);
     if (seen.has(normalized)) return false;
     try {
       const u = new URL(normalized);
@@ -182,6 +186,7 @@ export interface EnqueueContext {
   filteredOut: Set<string>;
   robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null;
   onLinkFiltered?: (url: string) => void;
+  keepQueryStrings?: boolean;
 }
 
 /**
@@ -195,18 +200,18 @@ export function enqueueLinks(
   currentDepth: number,
   ctx: EnqueueContext
 ): QueueItem[] {
-  const { seen, capped, startUrl, startPath, maxUrls, maxDepth, include, exclude, scope, filteredOut, robots, onLinkFiltered } = ctx;
+  const { seen, capped, startUrl, startPath, maxUrls, maxDepth, include, exclude, scope, filteredOut, robots, onLinkFiltered, keepQueryStrings } = ctx;
   let queue = ctx.queue;
 
   if (currentDepth >= maxDepth) return queue;
 
-  const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, onLinkFiltered, robots, scope);
+  const filtered = filterLinks(links, startUrl, seen, include, exclude, filteredOut, onLinkFiltered, robots, scope, keepQueryStrings);
 
   // Score first, then add highest-scoring links to the queue.
   // This prevents low-priority chrome/nav links from consuming the
   // maxUrls budget before high-priority content links are even seen.
   const scored = filtered
-    .map((link) => ({ url: normalizeUrl(link), score: prefixScore(normalizeUrl(link), startPath) }))
+    .map((link) => ({ url: normalizeUrl(link, keepQueryStrings), score: prefixScore(normalizeUrl(link, keepQueryStrings), startPath) }))
     .filter((item) => !seen.has(item.url))
     .sort((a, b) => b.score - a.score);
 
@@ -249,7 +254,8 @@ export async function crawl(
   const concurrency = options.concurrency ?? DEFAULT_CRAWL.concurrency;
   const exclude = options.exclude ?? [];
   const include = options.include ?? [];
-  const startParsed = new URL(normalizeUrl(startUrl));
+  const keepQueryStrings = options.keepQueryStrings ?? false;
+  const startParsed = new URL(normalizeUrl(startUrl, keepQueryStrings));
   const scope = options.scope ?? getDefaultScope(startParsed.hostname, startParsed.pathname);
 
   const extractOpts: ExtractOptions = {
@@ -269,12 +275,12 @@ export async function crawl(
   const pages: ExtractResult[] = [];
   const errors: Array<{ url: string; error: string }> = [];
   const capped = new Set<string>();
-  const startPath = new URL(normalizeUrl(startUrl)).pathname;
+  const startPath = new URL(normalizeUrl(startUrl, keepQueryStrings)).pathname;
 
   // Priority queue: URLs with more path-prefix overlap with the start URL
   // are dequeued first, so we exhaust the targeted subtree before exploring.
-  let queue: QueueItem[] = [{ url: normalizeUrl(startUrl), depth: 0, score: Infinity }];
-  seen.add(normalizeUrl(startUrl));
+  let queue: QueueItem[] = [{ url: normalizeUrl(startUrl, keepQueryStrings), depth: 0, score: Infinity }];
+  seen.add(normalizeUrl(startUrl, keepQueryStrings));
 
   let processed = 0;
   let active = 0;
@@ -297,7 +303,7 @@ export async function crawl(
           queue = enqueueLinks(cached.links, item.depth, {
             queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
             include, exclude, scope, filteredOut, robots,
-            onLinkFiltered: options.onLinkFiltered,
+            onLinkFiltered: options.onLinkFiltered, keepQueryStrings,
           });
           return;
         }

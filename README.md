@@ -97,7 +97,9 @@ URL
 
 **Caching:** Pages are cached locally (~/.cache/llm-docs, 7-day TTL) so re-runs and iterative exploration are fast.
 
-**Output:** Each page's URL path maps to a file path. Links between scraped pages are rewritten to relative paths so agents can follow references with standard file reads.
+**Output:** Each page's URL path maps to a file path. Query strings are stripped by default — URLs that differ only by query params (e.g. `?view=v8` vs `?view=v9`) are treated as the same page, so only the first-seen variant is crawled. Use `--keep-query-strings` to preserve them as URL-encoded filenames (`overview%3Fview%3Dv8.md`) when you need separate files per variant, e.g. versioned docs like Microsoft Learn's `?view=aspnetcore-8.0`. The trade-off: filenames get long and ugly, and on Windows it's easy to hit the 260-character path length limit.
+
+Links between scraped pages are rewritten to relative paths so agents can follow references with standard file reads.
 
 ## Development
 

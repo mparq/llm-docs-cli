@@ -18,8 +18,8 @@ export interface OutLink {
  * Return same-domain URLs that appear in markdown links but have no local
  * .md file, sorted by reference count descending.
  */
-export function outlinks(outDir: string): OutLink[] {
-  const hostname = basename(outDir);
+export function outlinks(outDir: string, keepQueryStrings = false, hostname?: string): OutLink[] {
+  hostname = hostname ?? basename(outDir);
   const mdFiles = globSync("**/*.md", { cwd: outDir });
   const existingRelPaths = new Set(mdFiles);
 
@@ -38,7 +38,7 @@ export function outlinks(outDir: string): OutLink[] {
       try {
         const parsed = new URL(href);
         if (parsed.hostname !== hostname) continue;
-        const targetRelPath = urlToRelPath(href);
+        const targetRelPath = urlToRelPath(href, keepQueryStrings);
         if (existingRelPaths.has(targetRelPath)) continue;
         // Same domain, no local file
         const normalized = parsed.origin + parsed.pathname;

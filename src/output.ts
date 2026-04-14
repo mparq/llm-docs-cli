@@ -27,7 +27,7 @@ import { CrawlResult } from "./crawl.ts";
  * e.g. https://reactrouter.com/start/modes → start/modes.md
  *      https://reactrouter.com/api/hooks/useNavigate → api/hooks/useNavigate.md
  */
-export function urlToRelPath(url: string): string {
+export function urlToRelPath(url: string, keepQueryStrings = false): string {
   const u = new URL(url);
   let pathname = u.pathname;
 
@@ -35,12 +35,12 @@ export function urlToRelPath(url: string): string {
   pathname = pathname.replace(/^\/+/, "").replace(/\/+$/, "");
 
   // Root page
-  if (!pathname && !u.search) return "index.md";
+  if (!pathname && (!keepQueryStrings || !u.search)) return "index.md";
 
-  // Encode query string into filename so different params produce different files.
-  // Uses URL-encoding (%3F, %3D, %26) which is cross-platform safe and
-  // unambiguous since real URL path segments never contain raw `%3F`.
-  const query = u.search
+  // Optionally encode query string into filename so different params produce
+  // different files.  Uses URL-encoding (%3F, %3D, %26) which is
+  // cross-platform safe and unambiguous.
+  const query = keepQueryStrings && u.search
     ? encodeURIComponent(u.search)
     : "";
 
@@ -51,6 +51,7 @@ export interface WriteOutputOptions {
   outDir: string;
   result: CrawlResult;
   useFilter: boolean;
+  keepQueryStrings?: boolean;
 }
 
 /**
@@ -59,13 +60,13 @@ export interface WriteOutputOptions {
  * Returns total bytes written.
  */
 export function writeOutput(opts: WriteOutputOptions): { files: number; totalBytes: number } {
-  const { outDir, result, useFilter } = opts;
+  const { outDir, result, useFilter, keepQueryStrings } = opts;
 
   let totalBytes = 0;
   let files = 0;
 
   for (const page of result.pages) {
-    const relPath = urlToRelPath(page.url);
+    const relPath = urlToRelPath(page.url, keepQueryStrings);
     const filePath = join(outDir, relPath);
 
     let content = page.markdown;

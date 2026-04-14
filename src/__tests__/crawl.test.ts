@@ -9,8 +9,14 @@ describe("normalizeUrl", () => {
     );
   });
 
-  it("should preserve query strings", () => {
+  it("should strip query strings by default", () => {
     expect(normalizeUrl("https://example.com/docs?page=1")).toBe(
+      "https://example.com/docs"
+    );
+  });
+
+  it("should preserve query strings when keepQueryStrings is true", () => {
+    expect(normalizeUrl("https://example.com/docs?page=1", true)).toBe(
       "https://example.com/docs?page=1"
     );
   });
@@ -25,8 +31,14 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
   });
 
-  it("should strip hash but preserve query string", () => {
+  it("should strip both hash and query string by default", () => {
     expect(normalizeUrl("https://example.com/docs?q=test#heading")).toBe(
+      "https://example.com/docs"
+    );
+  });
+
+  it("should strip hash but preserve query string when keepQueryStrings is true", () => {
+    expect(normalizeUrl("https://example.com/docs?q=test#heading", true)).toBe(
       "https://example.com/docs?q=test"
     );
   });
@@ -422,7 +434,7 @@ describe("enqueueLinks", () => {
     expect(queue).toHaveLength(0);
   });
 
-  it("should preserve query strings as distinct URLs", () => {
+  it("should dedup query string variants by default", () => {
     const links = [
       "https://example.com/docs/mvc/overview?view=v8",
       "https://example.com/docs/mvc/overview?view=v9",
@@ -430,17 +442,30 @@ describe("enqueueLinks", () => {
     const ctx = makeCtx();
     enqueueLinks(links, 0, ctx);
 
+    // Both normalize to the same URL (query stripped), already in seen
+    expect(ctx.seen.has("https://example.com/docs/mvc/overview")).toBe(true);
+    expect(ctx.queue).toHaveLength(0);
+  });
+
+  it("should preserve query strings as distinct URLs with keepQueryStrings", () => {
+    const links = [
+      "https://example.com/docs/mvc/overview?view=v8",
+      "https://example.com/docs/mvc/overview?view=v9",
+    ];
+    const ctx = makeCtx({ keepQueryStrings: true });
+    enqueueLinks(links, 0, ctx);
+
     expect(ctx.seen.has("https://example.com/docs/mvc/overview?view=v8")).toBe(true);
     expect(ctx.seen.has("https://example.com/docs/mvc/overview?view=v9")).toBe(true);
   });
 
-  it("should apply include filter to query strings", () => {
+  it("should apply include filter to query strings with keepQueryStrings", () => {
     const links = [
       "https://example.com/docs/mvc/controllers?view=v8",
       "https://example.com/docs/mvc/views?view=v9",
       "https://example.com/docs/mvc/models?view=v8",
     ];
-    const ctx = makeCtx({ include: ["view=v8"] });
+    const ctx = makeCtx({ include: ["view=v8"], keepQueryStrings: true });
     const queue = enqueueLinks(links, 0, ctx);
 
     const urls = queue.map((q) => q.url);
