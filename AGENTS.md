@@ -36,3 +36,7 @@ src/
 ```
 
 Key libraries: Playwright (headless Chromium), Turndown (HTML→markdown), JSDOM.
+
+## Releasing
+
+See [RELEASING.md](RELEASING.md) for versioning strategy, publish workflow, and release notes conventions.

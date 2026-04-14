@@ -26,25 +26,28 @@ Inspired by [llm.codes](https://llm.codes) -- an excellent hosted service that c
 
 Fair warning: Most code in this repo is agent-written.
 
+## Install
+
+```bash
+npm install -g llm-docs-cli
+npx playwright install chromium
+```
+
+The second command downloads Chromium (~150MB, one-time). `llm-docs` will tell you if it's missing.
+
 ## Quick start
 
 ```bash
-git clone https://github.com/mparq/llm-docs-cli
-cd llm-docs-cli
-npm install        # Chromium auto-installs on first run
-```
-
-```bash
 # Single page
-npm run dev -- https://reactrouter.com/start/framework/routing -d 0
+llm-docs https://reactrouter.com/start/framework/routing -d 0
 
 # Crawl an API reference (defaults: depth 3, max 200 pages)
-npm run dev -- https://shopify.dev/docs/api/app-home
+llm-docs https://shopify.dev/docs/api/app-home
 
 # Explore iteratively
-npm run dev -- https://shopify.dev/docs/api -d 1 -m 20
+llm-docs https://shopify.dev/docs/api -d 1 -m 20
 llm-docs links shopify.dev --group 2     # see what's out there
-npm run dev -- https://shopify.dev/docs/api/admin-graphql -d 2 -m 500 -o .
+llm-docs https://shopify.dev/docs/api/admin-graphql -d 2 -m 500 -o .
 ```
 
 Run `llm-docs --help` for the full set of options, filtering, and workflow tips.
@@ -103,6 +106,13 @@ Links between scraped pages are rewritten to relative paths so agents can follow
 
 ## Development
 
-See [AGENTS.md](AGENTS.md) for architecture details and development commands.
+See [AGENTS.md](AGENTS.md) for architecture details, development commands, and release instructions.
+
+```bash
+git clone https://github.com/mparq/llm-docs-cli
+cd llm-docs-cli
+npm install
+npm run dev -- https://example.com -d 0
+```
 
 Vendor rules for new documentation sites are welcome -- add a section to `src/vendors.ts` with DOM and/or markdown transforms. Rules should be safe no-ops on sites they don't target.

@@ -4,8 +4,7 @@
  * Pipeline: Playwright (JS render) → DOM simplification → Turndown (HTML→MD)
  */
 
-import { chromium, Browser, BrowserContext } from "playwright";
-import { execFileSync } from "node:child_process";
+import { chromium, Browser, BrowserContext } from "playwright-core";
 import { existsSync } from "node:fs";
 import TurndownService from "turndown";
 import { earlyDomRules, domRules } from "./vendors.ts";
@@ -265,12 +264,20 @@ export async function getBrowser(): Promise<Browser> {
   return sharedBrowser;
 }
 
-/** Auto-install Chromium on first run if missing. */
+/** Check Chromium is installed, error with instructions if not. */
 async function ensureChromium(): Promise<void> {
   const execPath = chromium.executablePath();
   if (!existsSync(execPath)) {
-    console.log("\n📦 Chromium not found — installing for Playwright (one-time, ~400MB)...\n");
-    execFileSync("npx", ["playwright", "install", "chromium"], { stdio: "inherit" });
+    console.error(`
+Chromium is not installed. llm-docs needs it to render JavaScript-heavy pages.
+
+Run this once to install it:
+
+  npx playwright install chromium
+
+Then re-run your command.
+`);
+    process.exit(1);
   }
 }
 

@@ -9,7 +9,7 @@
  * Writes output to ./test-output/<hostname>-<path>.md
  */
 
-import { extractMarkdown, closeBrowser } from "./extract.ts";
+import { extractMarkdown, closeBrowser } from "../src/extract.ts";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
