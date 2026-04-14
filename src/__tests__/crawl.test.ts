@@ -21,9 +21,9 @@ describe("normalizeUrl", () => {
     );
   });
 
-  it("should strip trailing slashes", () => {
+  it("should preserve trailing slashes", () => {
     expect(normalizeUrl("https://example.com/docs/intro/")).toBe(
-      "https://example.com/docs/intro"
+      "https://example.com/docs/intro/"
     );
   });
 
@@ -213,14 +213,22 @@ describe("filterLinks", () => {
   it("should reject links already in the seen set (normalized)", () => {
     const links = [
       "https://example.com/docs/intro",
-      "https://example.com/docs/intro/",      // normalizes to same
-      "https://example.com/docs/intro#section", // normalizes to same
+      "https://example.com/docs/intro#section", // normalizes to same (hash stripped)
     ];
     // Pre-populate seen with the normalized form
     const seen = new Set(["https://example.com/docs/intro"]);
     const result = filterLinks(links, baseUrl, seen);
-    // All three normalize to the seen URL
+    // Both normalize to the seen URL
     expect(result).toHaveLength(0);
+  });
+
+  it("should treat trailing-slash and no-trailing-slash as distinct URLs", () => {
+    const links = [
+      "https://example.com/docs/intro/",
+    ];
+    const seen = new Set(["https://example.com/docs/intro"]);
+    const result = filterLinks(links, baseUrl, seen);
+    expect(result).toHaveLength(1);
   });
 
   it("does not self-deduplicate within a batch (caller responsibility)", () => {

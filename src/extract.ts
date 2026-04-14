@@ -405,12 +405,9 @@ export async function extractMarkdown(
             path.includes("/signup")
           ) return;
 
-          // Normalize: strip hash, keep query string, strip trailing slash
+          // Normalize: strip hash, keep query string, preserve trailing slash
           u.hash = "";
-          let normalized = u.toString();
-          if (normalized.endsWith("/") && u.pathname !== "/") {
-            normalized = normalized.slice(0, -1);
-          }
+          const normalized = u.toString();
 
           if (!seen.has(normalized)) {
             seen.add(normalized);

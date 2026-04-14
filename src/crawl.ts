@@ -66,15 +66,13 @@ export function prefixScore(url: string, referencePath: string): number {
   }
 }
 
-/** Normalize a URL for dedup: strip hash, optionally strip query string, strip trailing slash */
+/** Normalize a URL for dedup: strip hash, optionally strip query string */
 export function normalizeUrl(url: string, keepQueryStrings = false): string {
   try {
     const u = new URL(url);
     u.hash = "";
     if (!keepQueryStrings) u.search = "";
-    let s = u.toString();
-    if (s.endsWith("/") && u.pathname !== "/") s = s.slice(0, -1);
-    return s;
+    return u.toString();
   } catch {
     return url;
   }
@@ -309,7 +307,23 @@ export async function crawl(
         }
       }
 
-      const result = await extractMarkdown(item.url, extractOpts);
+      let result: ExtractResult;
+      try {
+        result = await extractMarkdown(item.url, extractOpts);
+      } catch (err) {
+        // On 404, retry with trailing slash toggled — some servers require
+        // it but the HTML links omit it (or vice versa).
+        if (err instanceof Error && err.message.startsWith("HTTP 404")) {
+          const altUrl = item.url.endsWith("/")
+            ? item.url.slice(0, -1)
+            : item.url + "/";
+          result = await extractMarkdown(altUrl, extractOpts);
+          // Mark the alternate URL as seen so we don't re-crawl it
+          seen.add(altUrl);
+        } else {
+          throw err;
+        }
+      }
 
       // Store in cache (skip on --no-cache-write)
       if (!options.noCacheWrite) {
@@ -321,7 +335,7 @@ export async function crawl(
       queue = enqueueLinks(result.links, item.depth, {
         queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
         include, exclude, scope, filteredOut, robots,
-        onLinkFiltered: options.onLinkFiltered,
+        onLinkFiltered: options.onLinkFiltered, keepQueryStrings,
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
