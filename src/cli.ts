@@ -20,7 +20,7 @@ const program = new Command();
 program
   .name("llm-docs")
   .description("Scrape documentation sites into clean LLM-friendly markdown")
-  .version("0.1.0")
+  .version("0.2.0")
   .argument("<url>", "Documentation URL to scrape")
   .option("-d, --depth <n>", "Crawl depth (1 = only direct links from <url>)", "3")
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "200")

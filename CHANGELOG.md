@@ -4,6 +4,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-15
+
 ### Changed
 - **Breaking:** `--scope` renamed to `--restrict-path-override` to discourage overuse. The crawler's prefix-priority system already handles most cases without a hard path restriction.
 
