@@ -28,7 +28,7 @@ program
   .option("-o, --output <dir>", "Base directory to write into (default: current directory)")
   .option("-i, --include <patterns>", "Only follow links matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
   .option("-x, --exclude <patterns>", "Exclude URL paths matching patterns (comma-separated, prefix /path or regex /pattern/)", "")
-  .option("-s, --scope <path>", "Restrict crawling to URLs under this path prefix (default: / or site profile)")
+  .option("--restrict-path-override <path>", "Hard override: only crawl URLs under this path prefix. You almost certainly don't need this — the crawler already prioritizes links near the start URL, so pages in the same subtree are visited first without any restriction. Use this only when you must enforce a hard boundary (e.g. a multi-tenant host).")
   .option("--wait <ms>", "Wait time for JS rendering (ms)", "3000")
   .option("--timeout <ms>", "Page load timeout (ms)", "30000")
   .option("--no-filter", "Disable content filtering")
@@ -43,39 +43,27 @@ Examples:
   llm-docs https://docs.example.com/api
   llm-docs https://docs.example.com/api -m 500 --exclude /changelog
 
-Scope:
-  --scope restricts which links the crawler will follow. Only URLs
-  whose path starts with the scope prefix are enqueued. This is a
-  hard boundary, not a soft preference.
-
-  Scope is resolved in this order:
-    1. Explicit --scope flag (always wins)
-    2. Site profile (built-in for multi-tenant hosts like GitHub)
-    3. Default: / (whole domain)
-
-  Site profiles auto-narrow scope for multi-tenant hosts where "/"
-  would crawl unrelated content:
-    github.com/owner/repo/wiki  →  scope = /owner/repo
-
-  For dedicated doc sites (docs.example.com), the default is / so
-  the crawler follows all same-domain links — no flag needed.
-
-  Examples:
-    llm-docs https://github.com/owner/repo/wiki
-      → auto-scoped to /owner/repo (site profile)
-    llm-docs https://docs.example.com/guides/intro
-      → scope = / (whole domain, default)
-    llm-docs https://docs.example.com/v2/api --scope /v2
-      → only follows /v2/* links
-
 How the crawler prioritizes:
-  Within scope, links that share more path segments with the start
-  URL are visited first. This means you can run deep crawls (-d 3,
+  Links that share more path segments with the start URL are visited
+  first (prefix-priority). This means you can run deep crawls (-d 3,
   -m 500) and trust that the targeted subtree is exhausted before
-  the budget is spent on other in-scope pages.
+  the budget is spent on other pages. Cross-references that link out
+  to sibling sections (e.g. /docs/2026/api) are still followed — they
+  just get lower priority, not blocked.
 
   This also means you usually don't need filters. Just point the
   crawler at the right section and let the prioritization do the work.
+
+  For multi-tenant hosts like GitHub, a built-in site profile
+  automatically restricts the crawl to the relevant path prefix
+  (e.g. github.com/owner/repo/wiki → only follows /owner/repo/*).
+
+  --restrict-path-override does the same thing manually: it sets a
+  hard path prefix that blocks all links outside it. Site profiles
+  are just convenient presets for known multi-tenant domains. You
+  would only need --restrict-path-override for an unknown multi-
+  tenant host where "/" would crawl unrelated content. On a normal
+  doc site, prefix-priority already does the right thing.
 
 Tips:
   Run one crawl at a time, sequentially. Don't run parallel scrapes.
@@ -87,8 +75,8 @@ Tips:
   Cached pages make re-runs free, so iteration is cheap.
 
 Filtering:
-  Usually not needed — scope + prefix-priority handles most cases.
-  Filters help when you need to pin a version or narrow within scope.
+  Usually not needed — prefix-priority handles most cases.
+  Filters help when you need to pin a version or narrow further.
 
   --include <pattern>   Only follow links matching pattern. Matches
                         against the full path + query string.
@@ -145,7 +133,7 @@ Output structure:
     const keepQueryStrings = opts.keepQueryStrings === true;
     const include = parsePatterns((opts.include as string) || "");
     const exclude = parsePatterns((opts.exclude as string) || "");
-    const scope = opts.scope as string | undefined;
+    const scope = opts.restrictPathOverride as string | undefined;
     const customName = opts.name as string | undefined;
     const baseDir = (opts.output as string) || ".";
     const outDir = join(baseDir, customName ?? generateDirName(url));
@@ -158,7 +146,7 @@ Output structure:
     log(`   Depth:       ${depth}`);
     log(`   Max pages:   ${maxUrls}`);
     log(`   Concurrency: ${concurrency}`);
-    if (scope) log(`   Scope:       ${scope}`);
+    if (scope) log(`   Path override: ${scope}`);
     if (include.length) log(`   Include:     ${include.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     if (exclude.length) log(`   Exclude:     ${exclude.map(e => e instanceof RegExp ? e.toString() : e).join(", ")}`);
     log(`   robots.txt:  ${ignoreRobots ? "ignored" : "respected"}`);
