@@ -29,6 +29,8 @@ npm pack --dry-run
 git add CHANGELOG.md
 git commit -m "release: X.Y.Z"
 npm version patch           # or minor / major (commits + tags)
+git add package-lock.json   # npm version doesn't stage the lockfile
+git commit -m "X.Y.Z"
 
 # 4. Publish
 npm publish                 # prepublishOnly runs tests + typecheck
