@@ -19,9 +19,7 @@ Add entries to the `[Unreleased]` section in [CHANGELOG.md](CHANGELOG.md) as you
 ```bash
 # 1. Preflight
 git checkout main && git pull
-npm test
-npm run typecheck
-npm pack --dry-run
+npm run release:check
 
 # 2. Stamp [Unreleased] in CHANGELOG.md with version + date
 

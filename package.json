@@ -18,7 +18,9 @@
     "test:watch": "vitest",
     "test-extract": "tsx scripts/test-extract.ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm test && npm run typecheck"
+    "check:clean": "node scripts/check-clean-worktree.mjs",
+    "release:check": "npm test && npm run typecheck && npm run check:clean && npm pack --dry-run",
+    "prepublishOnly": "npm test && npm run typecheck && npm run check:clean"
   },
   "dependencies": {
     "commander": "^14.0.3",
