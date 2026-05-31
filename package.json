@@ -1,6 +1,6 @@
 {
   "name": "llm-docs-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Scrape JS-heavy documentation sites into clean LLM-friendly markdown",
   "type": "module",
   "license": "MIT",
@@ -10,7 +10,7 @@
     "!src/__tests__"
   ],
   "bin": {
-    "llm-docs": "./bin/llm-docs.mjs"
+    "llm-docs": "bin/llm-docs.mjs"
   },
   "scripts": {
     "dev": "tsx src/cli.ts",

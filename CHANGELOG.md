@@ -4,6 +4,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-31
+
 ### Added
 - `llm-docs cache --site <hostname>` to clear cached pages for a specific site.
 
