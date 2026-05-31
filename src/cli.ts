@@ -37,7 +37,7 @@ program
   .option("--ignore-robots", "Ignore robots.txt rules")
   .option("-v, --verbose", "Show filtered/skipped links during crawl")
   .option("--keep-query-strings", "Preserve query strings in output filenames")
-  .option("-n, --name <name>", "Custom output directory name (default: hostname from URL)")
+  .option("-n, --name <name>", "Override output folder name (avoid for public docs; default hostname is clearer)")
   .addHelpText("after", `
 Examples:
   llm-docs https://docs.example.com/api
@@ -109,9 +109,17 @@ Output structure:
     <output>/shopify.dev/docs/api/admin-graphql.md
     <output>/shopify.dev/docs/api/admin-graphql/mutations/productCreate.md
 
-  Use --name to override the folder name (useful for localhost/IP URLs):
+  Prefer the default hostname folder for normal website scrapes. It is
+  explicit, easy to recognize later, and tells future agents this tree
+  came from a website rather than a hand-written project wiki.
+
+  Use --name only when the hostname is not meaningful, such as localhost
+  or an IP address:
     llm-docs http://127.0.0.1:8000/docs --name my-project-docs
     → my-project-docs/docs/getting-started.md
+
+  Avoid using --name just to make a prettier folder. Custom names also
+  require follow-up link commands to pass --hostname for correct matching.
 
   Query strings are stripped from filenames by default. Use
   --keep-query-strings to preserve them (URL-encoded: %3F, %3D, %26)
@@ -152,6 +160,10 @@ Output structure:
     log(`   robots.txt:  ${ignoreRobots ? "ignored" : "respected"}`);
     log(`   Cache:       ${noCache && noCacheWrite ? "disabled" : noCache ? "skip reads" : noCacheWrite ? "read-only" : getCacheDirPath()}`);
     log(`   Output:      ${outDir}/`);
+    if (customName && customName !== hostname) {
+      log(`   ⚠️  --name hides the source hostname (${hostname}). Prefer the default`);
+      log(`      folder for website scrapes; reserve --name for localhost/IP URLs.`);
+    }
     if (depth === 0) {
       log();
       log(`   ⚠️  depth=0 fetches a single page with no link discovery.`);

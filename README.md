@@ -52,6 +52,8 @@ llm-docs https://shopify.dev/docs/api/admin-graphql -d 2 -m 500 -o .
 
 Run `llm-docs --help` for the full set of options, filtering, and workflow tips.
 
+By default, output goes into a folder named after the site hostname (for example, `shopify.dev/`). Keep that default for normal website scrapes. Avoid `--name` unless the source hostname is not meaningful (for example, localhost or an IP address): the hostname folder is explicit, easy to recognize later, and makes it obvious to future agents that the tree is scraped website documentation rather than a general project docs wiki.
+
 ## Recommended usage: hand it to your agent
 
 The best way to use `llm-docs` is to not use it yourself. Give an AI coding agent access to the tool and let it drive:
@@ -60,6 +62,8 @@ The best way to use `llm-docs` is to not use it yourself. Give an AI coding agen
 2. The agent runs `llm-docs --help` to learn the CLI.
 3. It crawls the docs, inspects with `llm-docs links`, iterates to fill gaps.
 4. It reads the resulting markdown files to answer your questions or write code.
+
+Agent note: prefer the default hostname output folder. Do not pass `--name` just to make a prettier directory; custom names hide the source site and require extra `--hostname` flags for later link inspection.
 
 This works especially well for libraries with large API surfaces where you don't know upfront which pages you'll need. Agents are already good at navigating file trees -- `grep`, `find`, and `read` just work. The directory tree *is* the table of contents.
 

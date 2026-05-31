@@ -4,6 +4,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Discourage `--name` for normal website scrapes in CLI help, runtime output, and agent-facing README guidance.
+
 ## [0.2.0] - 2026-04-15
 
 ### Changed
