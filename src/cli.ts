@@ -316,11 +316,13 @@ program
   .command("cache")
   .description("Manage the file cache")
   .option("--clear", "Clear all cached pages")
+  .option("--site <hostname>", "Filter cache operations to a specific site (e.g. docs.example.com)")
   .option("--stats", "Show cache statistics")
-  .action((opts: Record<string, boolean>) => {
+  .action((opts: { clear?: boolean; site?: string; stats?: boolean }) => {
     if (opts.clear) {
-      const count = cacheClear();
-      console.log(`🗑️  Cleared ${count} cached entries.`);
+      const count = cacheClear(opts.site);
+      const scope = opts.site ? ` for ${opts.site}` : "";
+      console.log(`🗑️  Cleared ${count} cached entries${scope}.`);
     } else {
       const s = cacheStats();
       console.log(`📦 Cache: ${s.entries} entries, ${s.sizeKb}KB`);

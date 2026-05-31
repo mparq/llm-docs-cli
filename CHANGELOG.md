@@ -4,7 +4,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- `llm-docs cache --site <hostname>` to clear cached pages for a specific site.
+
 ### Changed
+- Group cache entries by hostname under `~/.cache/llm-docs`.
 - Discourage `--name` for normal website scrapes in CLI help, runtime output, and agent-facing README guidance.
 
 ## [0.2.0] - 2026-04-15

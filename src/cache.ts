@@ -1,9 +1,9 @@
 /**
  * Simple file-based cache for scraped pages.
- * Stores in ~/.cache/llm-docs/<url-hash>.json
+ * Stores in ~/.cache/llm-docs/<hostname>/<url-hash>.json
  */
 
-import { mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { homedir } from "os";
@@ -31,8 +31,8 @@ interface CacheEntry {
   cachedAt: string;
 }
 
-function ensureCacheDir(): void {
-  mkdirSync(CACHE_DIR, { recursive: true });
+function urlToHostname(url: string): string {
+  return new URL(url).hostname;
 }
 
 function urlToKey(url: string): string {
@@ -40,7 +40,7 @@ function urlToKey(url: string): string {
 }
 
 function cachePath(url: string): string {
-  return join(CACHE_DIR, `${urlToKey(url)}.json`);
+  return join(CACHE_DIR, urlToHostname(url), `${urlToKey(url)}.json`);
 }
 
 /** Get a cached result, or null if not found / expired */
@@ -70,7 +70,8 @@ export function cacheGet(url: string, ttlMs = DEFAULT_TTL_MS): ExtractResult | n
 /** Store a result in cache */
 export function cacheSet(url: string, result: ExtractResult): void {
   try {
-    ensureCacheDir();
+    const path = cachePath(url);
+    mkdirSync(join(CACHE_DIR, urlToHostname(url)), { recursive: true });
     const entry: CacheEntry = {
       url: result.url,
       title: result.title,
@@ -79,7 +80,7 @@ export function cacheSet(url: string, result: ExtractResult): void {
       rawHtmlLength: result.rawHtmlLength,
       cachedAt: new Date().toISOString(),
     };
-    writeFileSync(cachePath(url), JSON.stringify(entry), "utf-8");
+    writeFileSync(path, JSON.stringify(entry), "utf-8");
   } catch {
     // Silently fail — cache is best-effort
   }
@@ -88,15 +89,23 @@ export function cacheSet(url: string, result: ExtractResult): void {
 /** Get cache stats */
 export function cacheStats(): { entries: number; sizeKb: number } {
   try {
-    ensureCacheDir();
-    const files = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json"));
+    if (!existsSync(CACHE_DIR)) return { entries: 0, sizeKb: 0 };
+    let totalEntries = 0;
     let totalSize = 0;
-    for (const f of files) {
+    for (const dir of readdirSync(CACHE_DIR)) {
+      const dirPath = join(CACHE_DIR, dir);
       try {
-        totalSize += statSync(join(CACHE_DIR, f)).size;
-      } catch {}
+        if (!statSync(dirPath).isDirectory()) continue;
+      } catch { continue; }
+      const files = readdirSync(dirPath).filter((f) => f.endsWith(".json"));
+      totalEntries += files.length;
+      for (const f of files) {
+        try {
+          totalSize += statSync(join(dirPath, f)).size;
+        } catch {}
+      }
     }
-    return { entries: files.length, sizeKb: Math.round(totalSize / 1024) };
+    return { entries: totalEntries, sizeKb: Math.round(totalSize / 1024) };
   } catch {
     return { entries: 0, sizeKb: 0 };
   }
@@ -107,17 +116,28 @@ export function getCacheDirPath(): string {
   return CACHE_DIR;
 }
 
-/** Clear all cached entries */
-export function cacheClear(): number {
+/** Clear cached entries, optionally filtered by site hostname */
+export function cacheClear(site?: string): number {
   try {
-    ensureCacheDir();
-    const files = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json"));
-    for (const f of files) {
-      try {
-        rmSync(join(CACHE_DIR, f));
-      } catch {}
+    if (!existsSync(CACHE_DIR)) return 0;
+    if (site) {
+      const siteDir = join(CACHE_DIR, site);
+      if (!existsSync(siteDir)) return 0;
+      const files = readdirSync(siteDir).filter((f) => f.endsWith(".json"));
+      rmSync(siteDir, { recursive: true });
+      return files.length;
     }
-    return files.length;
+    // Clear all sites
+    let cleared = 0;
+    for (const dir of readdirSync(CACHE_DIR)) {
+      const dirPath = join(CACHE_DIR, dir);
+      try {
+        if (!statSync(dirPath).isDirectory()) continue;
+      } catch { continue; }
+      cleared += readdirSync(dirPath).filter((f) => f.endsWith(".json")).length;
+      rmSync(dirPath, { recursive: true });
+    }
+    return cleared;
   } catch {
     return 0;
   }
