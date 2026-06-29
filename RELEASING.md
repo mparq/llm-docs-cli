@@ -19,6 +19,7 @@ Add entries to the `[Unreleased]` section in [CHANGELOG.md](CHANGELOG.md) as you
 ```bash
 # 1. Preflight
 git checkout main && git pull
+npm login              # if needed; verify with npm whoami
 npm run release:check
 
 # 2. Stamp [Unreleased] in CHANGELOG.md with version + date

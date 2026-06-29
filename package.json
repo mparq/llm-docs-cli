@@ -19,8 +19,9 @@
     "test-extract": "tsx scripts/test-extract.ts",
     "typecheck": "tsc --noEmit",
     "check:clean": "node scripts/check-clean-worktree.mjs",
-    "release:check": "npm test && npm run typecheck && npm run check:clean && npm pack --dry-run",
-    "prepublishOnly": "npm test && npm run typecheck && npm run check:clean"
+    "check:npm-login": "node scripts/check-npm-login.mjs",
+    "release:check": "npm run check:npm-login && npm test && npm run typecheck && npm run check:clean && npm pack --dry-run",
+    "prepublishOnly": "npm run check:npm-login && npm test && npm run typecheck && npm run check:clean"
   },
   "dependencies": {
     "commander": "^14.0.3",
