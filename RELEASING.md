@@ -20,22 +20,25 @@ Add entries to the `[Unreleased]` section in [CHANGELOG.md](CHANGELOG.md) as you
 # 1. Preflight
 git checkout main && git pull
 npm login              # if needed; verify with npm whoami
-npm run release:check
+make release-check
 
 # 2. Stamp [Unreleased] in CHANGELOG.md with version + date
 
 # 3. Commit and bump
-git add CHANGELOG.md
-git commit -m "release: X.Y.Z"
-npm version patch           # or minor / major (commits + tags)
-git add package-lock.json   # npm version doesn't stage the lockfile
-git commit -m "X.Y.Z"
+# For patch releases, update package.json + package-lock.json to X.Y.Z,
+# commit the release prep, then tag the release commit.
+git add CHANGELOG.md package.json package-lock.json
+git commit -m "chore(release): prepare X.Y.Z"
+git tag vX.Y.Z
 
-# 4. Publish
-npm publish                 # prepublishOnly runs tests + typecheck
+# 4. Publish and push
+make release           # runs release-check, npm publish, git push, git push --tags
+```
 
-# 5. Push
-git push && git push --tags
+If `npm publish` succeeds but the git push fails, rerun only:
+
+```bash
+make push
 ```
 
 Then create a GitHub Release at https://github.com/mparq/llm-docs-cli/releases/new — select the tag and paste the changelog entries as the body.
