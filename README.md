@@ -1,6 +1,6 @@
 # llm-docs
 
-Scrape JS-heavy documentation sites into clean, LLM-friendly markdown. Point it at a URL and get a directory tree of markdown files that mirrors the site structure.
+Fetch documentation sites into clean, LLM-friendly markdown. `llm-docs` prefers official LLM-facing sources like `llms.txt` and hosted `.md` pages when sites provide them, then falls back to rendering and parsing JS-heavy docs when needed. Point it at a URL and get a directory tree of markdown files that mirrors the site structure.
 
 ```bash
 llm-docs https://shopify.dev/docs/api/app-home -d 2 -m 100
@@ -14,15 +14,18 @@ llm-docs https://shopify.dev/docs/api/app-home -d 2 -m 100
 
 ## Why this exists
 
-Most documentation lives behind JavaScript-rendered SPAs. `curl` gives you an empty shell. LLMs need the actual content, as markdown, on disk.
+LLMs need documentation as markdown on disk. Many newer docs sites now publish LLM-friendly sources directly: `llms.txt` indexes, `llms-full.txt` dumps, and per-page `.md` URLs. When those exist, `llm-docs` uses them instead of re-parsing HTML.
+
+Older or more complex docs still often live behind JavaScript-rendered SPAs where `curl` gives you an empty shell. For those sites, `llm-docs` falls back to its original Playwright + Turndown extraction pipeline.
 
 Inspired by [llm.codes](https://llm.codes) -- an excellent hosted service that converts documentation into LLM-optimized markdown. `llm-docs` takes a different approach:
 
 - **Directory tree, not a single file.** Output mirrors the site structure on disk. Agents navigate it with `ls`, `grep`, and `find` -- the same tools they already use for source code -- reading only the pages they need instead of loading everything into context.
 - **Incremental.** Multiple crawls merge into the same tree. Grow, prune, and update sections independently without regenerating everything.
+- **Uses official LLM docs when available.** Probes `llms.txt`, follows same-domain markdown links, and prefers hosted `.md` / `.markdown` / `.txt` pages before falling back to HTML extraction.
 - **Local-first.** No API keys, no token limits, no per-page cost.
-- **Crawls, not single pages.** One command pulls an entire API reference by following links. Prefix-priority ordering exhausts the targeted subtree before spending budget on tangential sidebar links.
-- **Vendor rules.** Site-specific extraction fixes for popular doc sites (Shopify, Microsoft Learn, etc.). See `src/vendors.ts` to contribute rules for new sites.
+- **Crawls, not single pages.** One command pulls an entire API reference by following links. `llms.txt` links get seeded into the crawl queue; prefix-priority ordering still exhausts the targeted subtree before spending budget on tangential sidebar links.
+- **Vendor rules.** Site-specific extraction fixes for popular doc sites (Shopify, Microsoft Learn, etc.) when fallback parsing is needed. See `src/vendors.ts` to contribute rules for new sites.
 
 Fair warning: Most code in this repo is agent-written.
 
@@ -72,31 +75,42 @@ This works especially well for libraries with large API surfaces where you don't
 ```
 URL
  │
- ├─ Playwright render (headless Chromium, JS execution)
+ ├─ Probe llms.txt indexes from nearest path scope up to site root
+ │    └─ Seed crawl queue with same-domain markdown links when found
  │
- ├─ Code block simplification (unwrap CodeMirror, deep wrappers)
+ ├─ Try hosted markdown for each page
+ │    ├─ Direct .md / .markdown / .txt URLs
+ │    └─ Inferred variants like /docs/page → /docs/page.md
  │
- ├─ Link extraction ← collects same-domain links from FULL DOM
- │                     (before any cleanup can remove them)
- │
- ├─ DOM cleanup
- │    ├─ Early vendor DOM rules
- │    ├─ data-markdown="remove", sr-only removal
- │    ├─ <dt> simplification
- │    └─ Vendor DOM rules (Shopify, Microsoft Learn, etc.)
- │
- ├─ Content extraction (find main content root, strip chrome)
- │
- ├─ Turndown (HTML → markdown)
- │
- ├─ Markdown cleanup + vendor markdown rules
- │
- └─ Post-processing filters → .md file
+ └─ Fallback when official markdown is unavailable
+      │
+      ├─ Playwright render (headless Chromium, JS execution)
+      │
+      ├─ Code block simplification (unwrap CodeMirror, deep wrappers)
+      │
+      ├─ Link extraction ← collects same-domain links from FULL DOM
+      │                     (before any cleanup can remove them)
+      │
+      ├─ DOM cleanup
+      │    ├─ Early vendor DOM rules
+      │    ├─ data-markdown="remove", sr-only removal
+      │    ├─ <dt> simplification
+      │    └─ Vendor DOM rules (Shopify, Microsoft Learn, etc.)
+      │
+      ├─ Content extraction (find main content root, strip chrome)
+      │
+      ├─ Turndown (HTML → markdown)
+      │
+      ├─ Markdown cleanup + vendor markdown rules
+      │
+      └─ Post-processing filters → .md file
 ```
 
-**Rendering:** Playwright launches headless Chromium, waits for JS rendering, blocks images/fonts/media for speed.
+**LLM-native sources:** Before rendering, `llm-docs` probes for `llms.txt` indexes from the starting path up to the site root. If found, same-domain links in that markdown index seed the crawl. For each page, it tries hosted markdown variants first (`.md`, `.markdown`, `.txt`) and only renders HTML if no usable markdown source exists.
 
-**Link discovery:** Links are extracted from the full rendered DOM *before* any cleanup runs. This ensures vendor rules and chrome stripping can't accidentally remove discoverable links that the crawler needs.
+**Rendering fallback:** Playwright launches headless Chromium, waits for JS rendering, blocks images/fonts/media for speed.
+
+**Link discovery:** For hosted markdown, links are extracted directly from markdown. For rendered pages, links are extracted from the full rendered DOM *before* any cleanup runs. This ensures vendor rules and chrome stripping can't accidentally remove discoverable links that the crawler needs.
 
 **Content extraction:** A selector chain finds the main content area, stripping nav, sidebar, footer, and other chrome. Vendor-specific DOM rules (in `src/vendors.ts`) fix site-specific quirks before conversion.
 
