@@ -7,6 +7,7 @@
  */
 
 import { Command } from "commander";
+import { createRequire } from "module";
 import { join } from "path";
 import { crawl } from "./crawl.ts";
 import { closeBrowser } from "./extract.ts";
@@ -15,12 +16,17 @@ import { fixLinks } from "./fixlinks.ts";
 import { cacheStats, cacheClear, getCacheDirPath } from "./cache.ts";
 import { outlinks, groupOutlinks } from "./outlinks.ts";
 
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
 const program = new Command();
 
 program
   .name("llm-docs")
   .description("Scrape documentation sites into clean LLM-friendly markdown")
-  .version("0.2.0")
+  .version(version, "-v, --version", "Show the current llm-docs version")
+  .showHelpAfterError()
+  .showSuggestionAfterError()
   .argument("<url>", "Documentation URL to scrape")
   .option("-d, --depth <n>", "Crawl depth (1 = only direct links from <url>)", "3")
   .option("-m, --max-urls <n>", "Maximum pages to scrape", "200")
@@ -35,7 +41,7 @@ program
   .option("--no-cache", "Bypass cached results (still writes to cache)")
   .option("--no-cache-write", "Don't write results to cache")
   .option("--ignore-robots", "Ignore robots.txt rules")
-  .option("-v, --verbose", "Show filtered/skipped links during crawl")
+  .option("--verbose", "Show filtered/skipped links during crawl")
   .option("--keep-query-strings", "Preserve query strings in output filenames")
   .option("-n, --name <name>", "Override output folder name (avoid for public docs; default hostname is clearer)")
   .addHelpText("after", `
