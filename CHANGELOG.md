@@ -4,6 +4,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-29
+
 ### Added
 - Prefer hosted LLM-friendly markdown pages (`.md`, `.markdown`, `.txt`) before falling back to rendered HTML extraction.
 - Probe `llms.txt` indexes and seed crawls from their same-domain markdown links when available.
