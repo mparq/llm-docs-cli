@@ -41,9 +41,6 @@ The second command downloads Chromium (~150MB, one-time). `llm-docs` will tell y
 ## Quick start
 
 ```bash
-# Single page
-llm-docs https://reactrouter.com/start/framework/routing -d 0
-
 # Crawl an API reference (defaults: depth 3, max 200 pages)
 llm-docs https://shopify.dev/docs/api/app-home
 
@@ -56,6 +53,19 @@ llm-docs https://shopify.dev/docs/api/admin-graphql -d 2 -m 500 -o .
 Run `llm-docs --help` for the full set of options, filtering, and workflow tips.
 
 By default, output goes into a folder named after the site hostname (for example, `shopify.dev/`). Keep that default for normal website scrapes. Avoid `--name` unless the source hostname is not meaningful (for example, localhost or an IP address): the hostname folder is explicit, easy to recognize later, and makes it obvious to future agents that the tree is scraped website documentation rather than a general project docs wiki.
+
+If you put scraped docs under a `references/` folder, the output mirrors URL paths:
+
+```text
+references/
+└── cursor.com/
+    └── docs/
+        ├── index.md
+        ├── get-started/
+        │   └── quickstart.md
+        ├── models-and-pricing.md
+        └── rules.md
+```
 
 ## Recommended usage: hand it to your agent
 
