@@ -4,6 +4,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-29
+
+### Changed
+- Update README to emphasize the `llms.txt`-first workflow and show mirrored output under a `references/` directory.
+
 ## [0.4.0] - 2026-06-29
 
 ### Added
