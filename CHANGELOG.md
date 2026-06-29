@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Prefer hosted LLM-friendly markdown pages (`.md`, `.markdown`, `.txt`) before falling back to rendered HTML extraction.
 - Probe `llms.txt` indexes and seed crawls from their same-domain markdown links when available.
 
+### Fixed
+- Report the package version from `llm-docs --version` and reserve `-v` for version output.
+
 ## [0.3.0] - 2026-05-31
 
 ### Added
