@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTurndown, cleanMarkdown } from "../extract.ts";
+import { createTurndown, cleanMarkdown, markdownCandidates, extractLinksFromMarkdown } from "../extract.ts";
 
 describe("cleanMarkdown", () => {
   it("should collapse 3+ blank lines into 2", () => {
@@ -34,6 +34,29 @@ describe("cleanMarkdown", () => {
   it("should handle already-clean content", () => {
     const input = "# Title\n\nParagraph one.\n\nParagraph two.";
     expect(cleanMarkdown(input)).toBe(input);
+  });
+});
+
+describe("hosted markdown helpers", () => {
+  it("should try a .md variant before falling back to HTML", () => {
+    expect(markdownCandidates("https://example.com/docs/intro")).toEqual([
+      "https://example.com/docs/intro.md",
+    ]);
+  });
+
+  it("should not append .md twice for direct markdown URLs", () => {
+    expect(markdownCandidates("https://example.com/docs/intro.md")).toEqual([
+      "https://example.com/docs/intro.md",
+    ]);
+  });
+
+  it("should extract same-domain markdown links and canonicalize .md targets", () => {
+    const md = `# Docs\n\n[Intro](/docs/intro.md)\n[API](https://example.com/docs/api.md#method)\n- https://example.com/docs/from-llms.md\n[External](https://other.com/x.md)\n![Image](/image.png)`;
+    expect(extractLinksFromMarkdown(md, "https://example.com/docs.md")).toEqual([
+      "https://example.com/docs/intro",
+      "https://example.com/docs/api",
+      "https://example.com/docs/from-llms",
+    ]);
   });
 });
 

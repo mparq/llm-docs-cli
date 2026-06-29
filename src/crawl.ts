@@ -2,7 +2,7 @@
  * Crawler: BFS link discovery with depth control, concurrency, and deduplication.
  */
 
-import { extractMarkdown, ExtractResult, ExtractOptions } from "./extract.ts";
+import { extractMarkdown, ExtractResult, ExtractOptions, extractLinksFromMarkdown } from "./extract.ts";
 import { cacheGet, cacheSet } from "./cache.ts";
 import { fetchRobotsTxt, isAllowedByRobots } from "./robots.ts";
 import { getDefaultScope } from "./vendors.ts";
@@ -170,6 +170,74 @@ export interface QueueItem {
   score: number;
 }
 
+/** Candidate llms.txt locations, from nearest path scope to site root. */
+export function llmsTxtCandidates(startUrl: string): string[] {
+  try {
+    const u = new URL(startUrl);
+    const segments = u.pathname.split("/").filter(Boolean);
+    // If start URL looks like a file/page, use its parent directory.
+    if (segments.length > 0 && /\.[a-z0-9]+$/i.test(segments[segments.length - 1])) {
+      segments.pop();
+    }
+
+    const candidates: string[] = [];
+    for (let i = segments.length; i >= 0; i--) {
+      const path = "/" + [...segments.slice(0, i), "llms.txt"].join("/");
+      const candidate = new URL(u.toString());
+      candidate.pathname = path;
+      candidate.search = "";
+      candidate.hash = "";
+      candidates.push(candidate.toString());
+    }
+    return Array.from(new Set(candidates));
+  } catch {
+    return [];
+  }
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text);
+}
+
+function isLlmsTxtLike(contentType: string | null, text: string): boolean {
+  const type = (contentType ?? "").toLowerCase();
+  if (looksLikeHtml(text)) return false;
+  return type.includes("text/plain") || type.includes("markdown") || text.trimStart().startsWith("#");
+}
+
+export interface LlmsTxtResult {
+  url: string;
+  links: string[];
+}
+
+/** Fetch the first valid llms.txt index and return its same-domain links. */
+export async function fetchLlmsTxtIndex(
+  startUrl: string,
+  timeoutMs = 10000,
+  robots?: { rules: Array<{ type: "allow" | "disallow"; pattern: string }> } | null
+): Promise<LlmsTxtResult | null> {
+  for (const candidate of llmsTxtCandidates(startUrl)) {
+    if (robots && !isAllowedByRobots(candidate, robots)) continue;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(candidate, {
+        headers: { accept: "text/plain,text/markdown;q=0.9,*/*;q=0.1" },
+        signal: controller.signal,
+      });
+      if (!response.ok) continue;
+      const text = await response.text();
+      if (!isLlmsTxtLike(response.headers.get("content-type"), text)) continue;
+      return { url: response.url, links: extractLinksFromMarkdown(text, response.url) };
+    } catch {
+      // llms.txt probing is opportunistic; the normal crawler is the fallback.
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return null;
+}
+
 export interface EnqueueContext {
   queue: QueueItem[];
   seen: Set<string>;
@@ -237,6 +305,10 @@ export interface CrawlResult {
   remainingLinks: number;
   /** The resolved scope path prefix used for this crawl */
   scope: string;
+  /** llms.txt URL used for crawl seeding, if one was found */
+  llmsTxtUrl?: string;
+  /** Same-domain links discovered from llms.txt */
+  llmsTxtLinks: number;
   totalTime: number;
 }
 
@@ -260,12 +332,15 @@ export async function crawl(
     waitFor: options.waitFor,
     timeout: options.timeout,
     waitForSelector: options.waitForSelector,
+    preferMarkdown: options.preferMarkdown,
   };
 
   // Fetch robots.txt unless opted out
   const robots = options.ignoreRobots
     ? null
     : await fetchRobotsTxt(startUrl);
+
+  const llmsTxt = await fetchLlmsTxtIndex(startUrl, options.timeout, robots);
 
   const start = Date.now();
   const seen = new Set<string>();
@@ -279,6 +354,17 @@ export async function crawl(
   // are dequeued first, so we exhaust the targeted subtree before exploring.
   let queue: QueueItem[] = [{ url: normalizeUrl(startUrl, keepQueryStrings), depth: 0, score: Infinity }];
   seen.add(normalizeUrl(startUrl, keepQueryStrings));
+
+  // Seed the queue from llms.txt before regular HTML link discovery. This
+  // gives LLM-friendly markdown indexes first claim on the crawl budget while
+  // still keeping the requested start URL as page 1.
+  if (llmsTxt && depth > 0) {
+    queue = enqueueLinks(llmsTxt.links, -1, {
+      queue, seen, capped, startUrl, startPath, maxUrls, maxDepth: depth,
+      include, exclude, scope, filteredOut, robots,
+      onLinkFiltered: options.onLinkFiltered, keepQueryStrings,
+    });
+  }
 
   let processed = 0;
   let active = 0;
@@ -366,6 +452,8 @@ export async function crawl(
     filteredLinks: filteredOut.size,
     remainingLinks: capped.size,
     scope,
+    llmsTxtUrl: llmsTxt?.url,
+    llmsTxtLinks: llmsTxt?.links.length ?? 0,
     totalTime: Date.now() - start,
   };
 }

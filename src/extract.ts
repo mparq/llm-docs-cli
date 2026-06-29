@@ -16,12 +16,15 @@ export interface ExtractOptions {
   timeout?: number;
   /** CSS selector to wait for before extracting */
   waitForSelector?: string;
+  /** Prefer hosted LLM-friendly markdown (.md/.txt) when available */
+  preferMarkdown?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<ExtractOptions> = {
   waitFor: 3000,
   timeout: 30000,
   waitForSelector: "",
+  preferMarkdown: true,
 };
 
 export interface ExtractResult {
@@ -253,6 +256,157 @@ function getDefaultUserAgent(): string {
   }
 }
 
+/** Candidate hosted markdown URLs for a documentation URL. */
+export function markdownCandidates(url: string): string[] {
+  try {
+    const u = new URL(url);
+    const candidates: string[] = [];
+    const lowerPath = u.pathname.toLowerCase();
+
+    if (lowerPath.endsWith(".md") || lowerPath.endsWith(".markdown") || lowerPath.endsWith(".txt")) {
+      candidates.push(u.toString());
+    } else {
+      const noSlash = u.pathname.replace(/\/+$/, "");
+      const md = new URL(u.toString());
+      md.pathname = (noSlash || "/index") + ".md";
+      candidates.push(md.toString());
+
+      // Some sites expose directory pages as /path/index.md.
+      if (u.pathname.endsWith("/") || u.pathname === "/") {
+        const index = new URL(u.toString());
+        index.pathname = u.pathname.replace(/\/+$/, "") + "/index.md";
+        candidates.push(index.toString());
+      }
+    }
+
+    return Array.from(new Set(candidates));
+  } catch {
+    return [];
+  }
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text);
+}
+
+function isMarkdownLike(contentType: string | null, text: string): boolean {
+  const type = (contentType ?? "").toLowerCase();
+  if (looksLikeHtml(text)) return false;
+  return (
+    type.includes("markdown") ||
+    type.includes("text/plain") ||
+    type.includes("application/octet-stream") ||
+    text.trimStart().startsWith("#")
+  );
+}
+
+function stripHostedMarkdownSuffix(url: string): string {
+  const u = new URL(url);
+  u.pathname = u.pathname.replace(/\.(?:md|markdown)$/i, "");
+  return u.toString();
+}
+
+/** Extract and canonicalize same-domain links from markdown content. */
+export function extractLinksFromMarkdown(markdown: string, baseUrl: string): string[] {
+  const base = new URL(baseUrl);
+  const seen = new Set<string>();
+  const links: string[] = [];
+  const patterns = [
+    /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    /<((?:https?:\/\/|\/)[^>\s]+)>/g,
+    /(?:^|[\s(])((?:https?:\/\/)[^\s)<>]+)/gm,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(markdown)) !== null) {
+      try {
+        const raw = match[1];
+        if (!raw || raw.startsWith("#") || raw.startsWith("mailto:") || raw.startsWith("tel:")) continue;
+        const u = new URL(raw, baseUrl);
+        if (u.hostname !== base.hostname) continue;
+        const path = u.pathname.toLowerCase();
+        if (path.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|json|xml|zip|tar|gz|pdf|dmg|pkg)$/)) continue;
+        u.hash = "";
+        const normalized = stripHostedMarkdownSuffix(u.toString());
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          links.push(normalized);
+        }
+      } catch {}
+    }
+  }
+
+  return links;
+}
+
+function canonicalizeMarkdownLinks(markdown: string, baseUrl: string): string {
+  const base = new URL(baseUrl);
+  return markdown.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (match, text, href) => {
+    const titleMatch = href.match(/^(.+?)\s+("[^"]*")$/);
+    const rawHref = titleMatch ? titleMatch[1] : href;
+    const title = titleMatch ? ` ${titleMatch[2]}` : "";
+    try {
+      const u = new URL(rawHref, baseUrl);
+      if (u.hostname !== base.hostname) return match;
+      if (!/\.(?:md|markdown)$/i.test(u.pathname)) return match;
+      u.pathname = u.pathname.replace(/\.(?:md|markdown)$/i, "");
+      return `[${text}](${u.toString()}${title})`;
+    } catch {
+      return match;
+    }
+  });
+}
+
+function titleFromMarkdown(markdown: string, url: string): string {
+  const h1 = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  if (h1) return h1;
+  try {
+    const pathname = new URL(url).pathname.replace(/\/+$/, "");
+    const leaf = pathname.split("/").filter(Boolean).pop() || "Documentation";
+    return leaf.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return "Documentation";
+  }
+}
+
+async function extractHostedMarkdown(url: string, options: Required<ExtractOptions>): Promise<ExtractResult | null> {
+  const start = Date.now();
+  for (const candidate of markdownCandidates(url)) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeout);
+    try {
+      const response = await fetch(candidate, {
+        headers: {
+          accept: "text/markdown,text/plain;q=0.9,*/*;q=0.1",
+          "user-agent": getDefaultUserAgent(),
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) continue;
+      const text = await response.text();
+      if (!isMarkdownLike(response.headers.get("content-type"), text)) continue;
+      const markdown = cleanMarkdown(canonicalizeMarkdownLinks(text, candidate));
+      const resultUrl = /\.(?:md|markdown)$/i.test(new URL(url).pathname)
+        ? stripHostedMarkdownSuffix(url)
+        : url;
+      return {
+        url: resultUrl,
+        title: titleFromMarkdown(markdown, resultUrl),
+        markdown,
+        links: extractLinksFromMarkdown(markdown, candidate),
+        rawHtmlLength: text.length,
+        elapsed: Date.now() - start,
+      };
+    } catch {
+      // Hosted markdown is opportunistic; fall back to rendered HTML.
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return null;
+}
+
 // Shared browser instance for batch operations
 let sharedBrowser: Browser | null = null;
 
@@ -297,6 +451,11 @@ export async function extractMarkdown(
 ): Promise<ExtractResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const start = Date.now();
+
+  if (opts.preferMarkdown) {
+    const hostedMarkdown = await extractHostedMarkdown(url, opts);
+    if (hostedMarkdown) return hostedMarkdown;
+  }
 
   const browser = await getBrowser();
   const context: BrowserContext = await browser.newContext({

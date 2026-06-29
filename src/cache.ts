@@ -22,6 +22,8 @@ function getCacheDir(): string {
 const CACHE_DIR = getCacheDir();
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+const CACHE_VERSION = 2;
+
 interface CacheEntry {
   url: string;
   title: string;
@@ -29,6 +31,7 @@ interface CacheEntry {
   links: string[];
   rawHtmlLength: number;
   cachedAt: string;
+  version?: number;
 }
 
 function urlToHostname(url: string): string {
@@ -53,6 +56,7 @@ export function cacheGet(url: string, ttlMs = DEFAULT_TTL_MS): ExtractResult | n
 
     const raw = readFileSync(path, "utf-8");
     const entry: CacheEntry = JSON.parse(raw);
+    if (entry.version !== CACHE_VERSION) return null;
 
     return {
       url: entry.url,
@@ -79,6 +83,7 @@ export function cacheSet(url: string, result: ExtractResult): void {
       links: result.links,
       rawHtmlLength: result.rawHtmlLength,
       cachedAt: new Date().toISOString(),
+      version: CACHE_VERSION,
     };
     writeFileSync(path, JSON.stringify(entry), "utf-8");
   } catch {

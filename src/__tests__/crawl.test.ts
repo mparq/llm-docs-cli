@@ -1,6 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, isExcluded, isIncluded, isInScope, filterLinks, prefixScore, enqueueLinks, type QueueItem, type EnqueueContext } from "../crawl.ts";
+import { normalizeUrl, isExcluded, isIncluded, isInScope, filterLinks, prefixScore, enqueueLinks, llmsTxtCandidates, type QueueItem, type EnqueueContext } from "../crawl.ts";
 import { getDefaultScope } from "../vendors.ts";
+
+describe("llmsTxtCandidates", () => {
+  it("should probe path ancestors from nearest scope to site root", () => {
+    expect(llmsTxtCandidates("https://code.claude.com/docs/en/overview")).toEqual([
+      "https://code.claude.com/docs/en/overview/llms.txt",
+      "https://code.claude.com/docs/en/llms.txt",
+      "https://code.claude.com/docs/llms.txt",
+      "https://code.claude.com/llms.txt",
+    ]);
+  });
+
+  it("should use the parent directory when the URL has a file extension", () => {
+    expect(llmsTxtCandidates("https://example.com/docs/page.md")).toEqual([
+      "https://example.com/docs/llms.txt",
+      "https://example.com/llms.txt",
+    ]);
+  });
+
+  it("should probe root llms.txt for the site root", () => {
+    expect(llmsTxtCandidates("https://cursor.com/")).toEqual([
+      "https://cursor.com/llms.txt",
+    ]);
+  });
+});
 
 describe("normalizeUrl", () => {
   it("should strip hash fragments", () => {
