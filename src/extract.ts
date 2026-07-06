@@ -370,6 +370,91 @@ function titleFromMarkdown(markdown: string, url: string): string {
   }
 }
 
+function mergeLinks(primary: string[], secondary: string[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const link of [...primary, ...secondary]) {
+    if (seen.has(link)) continue;
+    seen.add(link);
+    merged.push(link);
+  }
+  return merged;
+}
+
+async function extractLinksFromRenderedHtml(url: string, options: Required<ExtractOptions>): Promise<string[]> {
+  const browser = await getBrowser();
+  const context: BrowserContext = await browser.newContext({
+    userAgent: getDefaultUserAgent(),
+    viewport: { width: 1280, height: 720 },
+  });
+  const page = await context.newPage();
+
+  try {
+    await page.route("**/*", (route) => {
+      const type = route.request().resourceType();
+      if (["image", "media", "font", "manifest"].includes(type)) {
+        return route.abort();
+      }
+      return route.continue();
+    });
+
+    const response = await page.goto(url, {
+      waitUntil: "networkidle",
+      timeout: options.timeout,
+    });
+
+    const status = response?.status() ?? 0;
+    if (status >= 400) return [];
+
+    if (options.waitForSelector) {
+      await page
+        .waitForSelector(options.waitForSelector, { timeout: options.timeout })
+        .catch(() => {});
+    }
+
+    if (options.waitFor > 0) {
+      await page.waitForTimeout(options.waitFor);
+    }
+
+    return await page.evaluate((pageUrl: string) => {
+      const base = new URL(pageUrl);
+      const seen = new Set<string>();
+      const results: string[] = [];
+
+      document.querySelectorAll("a[href]").forEach((a) => {
+        try {
+          const href = (a as HTMLAnchorElement).href;
+          if (!href) return;
+          const u = new URL(href, pageUrl);
+
+          if (u.hostname !== base.hostname) return;
+
+          const path = u.pathname.toLowerCase();
+          if (
+            path.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|json|xml|zip|tar|gz|pdf|dmg|pkg)$/) ||
+            path.includes("/search") ||
+            path.includes("/login") ||
+            path.includes("/signin") ||
+            path.includes("/signup")
+          ) return;
+
+          u.hash = "";
+          const normalized = u.toString();
+
+          if (!seen.has(normalized)) {
+            seen.add(normalized);
+            results.push(normalized);
+          }
+        } catch {}
+      });
+
+      return results;
+    }, page.url());
+  } finally {
+    await context.close();
+  }
+}
+
 async function extractHostedMarkdown(url: string, options: Required<ExtractOptions>): Promise<ExtractResult | null> {
   const start = Date.now();
   for (const candidate of markdownCandidates(url)) {
@@ -390,11 +475,20 @@ async function extractHostedMarkdown(url: string, options: Required<ExtractOptio
       const resultUrl = /\.(?:md|markdown)$/i.test(new URL(url).pathname)
         ? stripHostedMarkdownSuffix(url)
         : url;
+      const markdownLinks = extractLinksFromMarkdown(markdown, candidate);
+      let htmlLinks: string[] = [];
+      try {
+        htmlLinks = await extractLinksFromRenderedHtml(resultUrl, options);
+      } catch {
+        // Link discovery from rendered HTML is best-effort. Keep the hosted
+        // markdown result usable even if browser rendering fails.
+      }
+
       return {
         url: resultUrl,
         title: titleFromMarkdown(markdown, resultUrl),
         markdown,
-        links: extractLinksFromMarkdown(markdown, candidate),
+        links: mergeLinks(htmlLinks, markdownLinks),
         rawHtmlLength: text.length,
         elapsed: Date.now() - start,
       };
@@ -583,7 +677,7 @@ export async function extractMarkdown(
       });
 
       return results;
-    }, url);
+    }, page.url());
 
     // Apply vendor-specific early DOM rules (before data-markdown removal)
     for (const rule of earlyDomRules) {
