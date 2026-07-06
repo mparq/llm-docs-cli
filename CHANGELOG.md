@@ -4,6 +4,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-06
+
+### Fixed
+- Discover links from rendered HTML when using hosted markdown pages, preserving sidebar/index navigation that `.md` pages omit.
+
 ## [0.4.1] - 2026-06-29
 
 ### Changed
