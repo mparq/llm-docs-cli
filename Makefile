@@ -1,4 +1,4 @@
-.PHONY: help test typecheck check-clean check-npm-login release-check publish push release
+.PHONY: help test typecheck check-clean check-npm-login release-check publish push github-release release
 
 help:
 	@echo "Targets:"
@@ -7,7 +7,8 @@ help:
 	@echo "  make release-check    Verify npm login, tests, clean git tree, and package tarball"
 	@echo "  make publish          Run release-check, then npm publish"
 	@echo "  make push             Push commits and tags"
-	@echo "  make release          Publish to npm, then push commits and tags"
+	@echo "  make github-release   Create GitHub release from CHANGELOG.md"
+	@echo "  make release          Publish to npm, push commits/tags, then create GitHub release"
 
 test:
 	npm test
@@ -31,4 +32,7 @@ push:
 	git push
 	git push --tags
 
-release: publish push
+github-release:
+	npm run release:github
+
+release: publish push github-release

@@ -31,8 +31,8 @@ git add CHANGELOG.md package.json package-lock.json
 git commit -m "chore(release): prepare X.Y.Z"
 git tag vX.Y.Z
 
-# 4. Publish and push
-make release           # runs release-check, npm publish, git push, git push --tags
+# 4. Publish, push, and create the GitHub Release
+make release           # runs release-check, npm publish, git push, git push --tags, gh release create
 ```
 
 If `npm publish` succeeds but the git push fails, rerun only:
@@ -41,7 +41,12 @@ If `npm publish` succeeds but the git push fails, rerun only:
 make push
 ```
 
-Then create a GitHub Release at https://github.com/mparq/llm-docs-cli/releases/new — select the tag and paste the changelog entries as the body.
+`make release` creates the GitHub Release automatically from the matching `CHANGELOG.md` section. To create or retry only that step, run:
+
+```bash
+npm run release:github           # uses package.json version
+node scripts/create-github-release.mjs 0.4.2
+```
 
 ## First-time setup
 
